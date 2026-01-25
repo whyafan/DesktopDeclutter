@@ -2,18 +2,23 @@ import SwiftUI
 
 struct CardView: View {
     let file: DesktopFile
+    let suggestions: [FileSuggestion]
     let onKeep: () -> Void
     let onBin: () -> Void
     let onPreview: (() -> Void)?
+    let onSuggestionTap: ((FileSuggestion) -> Void)?
     
     @State private var offset: CGSize = .zero
     @State private var color: Color = .clear
+    @State private var showSuggestions = false
     
-    init(file: DesktopFile, onKeep: @escaping () -> Void, onBin: @escaping () -> Void, onPreview: (() -> Void)? = nil) {
+    init(file: DesktopFile, suggestions: [FileSuggestion] = [], onKeep: @escaping () -> Void, onBin: @escaping () -> Void, onPreview: (() -> Void)? = nil, onSuggestionTap: ((FileSuggestion) -> Void)? = nil) {
         self.file = file
+        self.suggestions = suggestions
         self.onKeep = onKeep
         self.onBin = onBin
         self.onPreview = onPreview
+        self.onSuggestionTap = onSuggestionTap
     }
     
     @State private var isPreviewHovered = false
@@ -65,51 +70,66 @@ struct CardView: View {
                     )
                 )
                 
-                // File info footer
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(file.name)
-                            .font(.system(size: 15, weight: .semibold))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .foregroundColor(.primary)
-                        
-                        HStack(spacing: 6) {
-                            Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(.secondary)
-                            
-                            Text("•")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary.opacity(0.6))
-                            
-                            Text(fileDateString)
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(.secondary)
+                // Suggestions badges (if any)
+                if !suggestions.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(Array(suggestions.prefix(2).enumerated()), id: \.offset) { _, suggestion in
+                            SuggestionBadge(suggestion: suggestion) {
+                                onSuggestionTap?(suggestion)
+                            }
                         }
                     }
-                    
-                    Spacer()
-                    
-                    // Preview button
-                    if onPreview != nil {
-                        Button(action: {
-                            onPreview?()
-                        }) {
-                            Image(systemName: "eye.fill")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(isPreviewHovered ? .white : .blue)
-                                .frame(width: 36, height: 36)
-                                .background {
-                                    Circle()
-                                        .fill(isPreviewHovered ? Color.blue : Color.blue.opacity(0.12))
-                                }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                }
+                
+                // File info footer
+                VStack(spacing: 8) {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(file.name)
+                                .font(.system(size: 15, weight: .semibold))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .foregroundColor(.primary)
+                            
+                            HStack(spacing: 6) {
+                                Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(.secondary)
+                                
+                                Text("•")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary.opacity(0.6))
+                                
+                                Text(fileDateString)
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .help("Preview file (Space)")
-                        .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isPreviewHovered = hovering
+                        
+                        Spacer()
+                        
+                        // Preview button
+                        if onPreview != nil {
+                            Button(action: {
+                                onPreview?()
+                            }) {
+                                Image(systemName: "eye.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(isPreviewHovered ? .white : .blue)
+                                    .frame(width: 36, height: 36)
+                                    .background {
+                                        Circle()
+                                            .fill(isPreviewHovered ? Color.blue : Color.blue.opacity(0.12))
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .help("Preview file (Space)")
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isPreviewHovered = hovering
+                                }
                             }
                         }
                     }
@@ -196,7 +216,7 @@ struct CardView: View {
             }
             .allowsHitTesting(false)
         }
-        .frame(width: 300, height: 400)
+        .frame(width: 300, height: suggestions.isEmpty ? 400 : 450)
         .offset(x: offset.width, y: 0)
         .rotationEffect(.degrees(Double(offset.width / 25)))
         .scaleEffect(1.0 - abs(offset.width) / 1200)
@@ -220,5 +240,83 @@ struct CardView: View {
                     }
                 }
         )
+    }
+}
+
+// MARK: - Suggestion Badge
+
+struct SuggestionBadge: View {
+    let suggestion: FileSuggestion
+    let onTap: () -> Void
+    
+    @State private var isHovered = false
+    
+    private var badgeColor: Color {
+        switch suggestion.type {
+        case .duplicate, .temporaryFile:
+            return .orange
+        case .similarNames, .sameSession:
+            return .blue
+        case .oldFile:
+            return .red
+        case .largeFile:
+            return .purple
+        }
+    }
+    
+    private var badgeIcon: String {
+        switch suggestion.type {
+        case .duplicate:
+            return "doc.on.doc.fill"
+        case .similarNames:
+            return "square.stack.fill"
+        case .oldFile:
+            return "clock.fill"
+        case .largeFile:
+            return "externaldrive.fill"
+        case .sameSession:
+            return "calendar.badge.clock"
+        case .temporaryFile:
+            return "trash.fill"
+        }
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: badgeIcon)
+                    .font(.system(size: 12, weight: .semibold))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(suggestion.message)
+                        .font(.system(size: 12, weight: .medium))
+                    
+                    if let hint = suggestion.actionHint {
+                        Text(hint)
+                            .font(.system(size: 10, weight: .regular))
+                            .opacity(0.8)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .opacity(0.6)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(badgeColor.opacity(isHovered ? 0.9 : 0.85))
+            }
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }

@@ -26,6 +26,12 @@ class DeclutterViewModel: ObservableObject {
     // Filters
     @Published var selectedFileTypeFilter: FileType? = nil
     
+    // Suggestions
+    @Published var currentFileSuggestions: [FileSuggestion] = []
+    @Published var showGroupReview = false
+    @Published var groupReviewFiles: [DesktopFile] = []
+    private var suggestionCache: [UUID: [FileSuggestion]] = [:]
+    
     var filteredFiles: [DesktopFile] {
         if let filter = selectedFileTypeFilter {
             return files.filter { $0.fileType == filter }
@@ -33,9 +39,70 @@ class DeclutterViewModel: ObservableObject {
         return files
     }
     
+    private var lastSuggestionFileId: UUID? = nil
+    private var suggestionTask: Task<Void, Never>? = nil
+    
     var currentFile: DesktopFile? {
-        guard currentFileIndex < filteredFiles.count else { return nil }
-        return filteredFiles[currentFileIndex]
+        guard currentFileIndex < filteredFiles.count else { 
+            // Clear suggestions when no file
+            if !currentFileSuggestions.isEmpty {
+                currentFileSuggestions = []
+            }
+            return nil 
+        }
+        let file = filteredFiles[currentFileIndex]
+        
+        // Only update suggestions when file actually changes
+        if lastSuggestionFileId != file.id {
+            lastSuggestionFileId = file.id
+            
+            // Cancel previous suggestion task
+            suggestionTask?.cancel()
+            
+            // Start new suggestion detection
+            updateSuggestionsAsync(for: file)
+        }
+        
+        return file
+    }
+    
+    private func updateSuggestionsAsync(for file: DesktopFile) {
+        // Check cache first
+        if let cached = suggestionCache[file.id] {
+            currentFileSuggestions = cached
+            return
+        }
+        
+        // Show empty suggestions immediately (will update when ready)
+        currentFileSuggestions = []
+        
+        // Cancel any existing task
+        suggestionTask?.cancel()
+        
+        // Run detection on background thread with cancellation support
+        suggestionTask = Task {
+            // Limit files to compare against (only check first 100 files for performance)
+            // This prevents slowdowns with large desktop collections
+            let filesToCheck = Array(files.prefix(100))
+            
+            // Small delay to debounce rapid file changes
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            
+            guard !Task.isCancelled else { return }
+            
+            let suggestions = await SuggestionDetector.shared.detectSuggestionsAsync(for: file, in: filesToCheck)
+            
+            guard !Task.isCancelled else { return }
+            
+            // Update on main thread
+            await MainActor.run {
+                // Only update if this file is still current
+                if lastSuggestionFileId == file.id && suggestionCache[file.id] == nil {
+                    currentFileSuggestions = suggestions
+                    suggestionCache[file.id] = suggestions
+                }
+            }
+        }
     }
     
     var isFinished: Bool {
@@ -76,8 +143,12 @@ class DeclutterViewModel: ObservableObject {
             self.binnedCount = 0
             self.totalFilesCount = loadedFiles.count
             self.selectedFileTypeFilter = nil // Reset filter
+            self.suggestionCache.removeAll() // Clear suggestion cache
+            self.currentFileSuggestions = []
+            self.lastSuggestionFileId = nil
+            self.thumbnailGenerationInProgress.removeAll()
             
-            // Trigger thumbnail generation for the first few files
+            // Trigger thumbnail generation for the first file only (lazy load others)
             generateThumbnails(for: 0)
         } catch {
             self.errorMessage = error.localizedDescription
@@ -92,17 +163,35 @@ class DeclutterViewModel: ObservableObject {
         generateThumbnails(for: 0)
     }
     
+    private var thumbnailGenerationInProgress = Set<UUID>()
+    
     func generateThumbnails(for index: Int) {
-        // Preload thumbnails for current and next few files
+        // Preload thumbnails for current and next 2 files only (limit concurrent generation)
         let filesToProcess = filteredFiles
-        let range = index..<min(index + 3, filesToProcess.count)
+        let range = index..<min(index + 2, filesToProcess.count) // Reduced from 3 to 2
+        
         for i in range {
             let file = filesToProcess[i]
-            if let fileIndex = files.firstIndex(where: { $0.id == file.id }), files[fileIndex].thumbnail == nil {
-                FileScanner.shared.generateThumbnail(for: file) { [weak self] image in
-                    if let self = self, fileIndex < self.files.count {
+            
+            // Skip if already generating or already has thumbnail
+            guard !thumbnailGenerationInProgress.contains(file.id),
+                  let fileIndex = files.firstIndex(where: { $0.id == file.id }),
+                  files[fileIndex].thumbnail == nil else {
+                continue
+            }
+            
+            // Mark as in progress
+            thumbnailGenerationInProgress.insert(file.id)
+            
+            FileScanner.shared.generateThumbnail(for: file) { [weak self] image in
+                guard let self = self else { return }
+                
+                // Update on main thread
+                Task { @MainActor in
+                    if fileIndex < self.files.count {
                         self.files[fileIndex].thumbnail = image
                     }
+                    self.thumbnailGenerationInProgress.remove(file.id)
                 }
             }
         }
@@ -303,5 +392,66 @@ class DeclutterViewModel: ObservableObject {
         formatter.allowedUnits = [.useMB, .useGB, .useKB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: reclaimedSpace)
+    }
+    
+    // MARK: - Group Review
+    
+    func startGroupReview(for suggestion: FileSuggestion) {
+        let groupFiles: [DesktopFile]
+        
+        switch suggestion.type {
+        case .duplicate(_, let files),
+             .similarNames(_, _, let files),
+             .sameSession(_, let files):
+            groupFiles = files
+        default:
+            return
+        }
+        
+        groupReviewFiles = groupFiles
+        showGroupReview = true
+    }
+    
+    func binGroupFiles(_ filesToBin: [DesktopFile]) {
+        for file in filesToBin {
+            if files.contains(where: { $0.id == file.id }) {
+                // Remove from files and bin
+                files.removeAll { $0.id == file.id }
+                
+                if immediateBinning {
+                    do {
+                        try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+                        binnedCount += 1
+                        reclaimedSpace += file.fileSize
+                    } catch {
+                        binnedCount += 1
+                        reclaimedSpace += file.fileSize
+                    }
+                } else {
+                    binnedFiles.append(file)
+                    binnedCount += 1
+                    reclaimedSpace += file.fileSize
+                }
+            }
+        }
+        
+        // Clear suggestion cache for removed files
+        for file in filesToBin {
+            suggestionCache.removeValue(forKey: file.id)
+        }
+        
+        showGroupReview = false
+        groupReviewFiles = []
+    }
+    
+    func keepGroupFiles(_ filesToKeep: [DesktopFile]) {
+        for file in filesToKeep {
+            files.removeAll { $0.id == file.id }
+            keptCount += 1
+            suggestionCache.removeValue(forKey: file.id)
+        }
+        
+        showGroupReview = false
+        groupReviewFiles = []
     }
 }

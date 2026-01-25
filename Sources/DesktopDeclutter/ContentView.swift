@@ -158,6 +158,9 @@ struct ContentView: View {
                         }
                     }
                     .padding()
+                } else if viewModel.showGroupReview {
+                    // Group Review Mode
+                    GroupReviewView(viewModel: viewModel)
                 } else if !viewModel.isFinished {
                     ZStack {
                     VStack {
@@ -166,18 +169,22 @@ struct ContentView: View {
                         if let file = viewModel.currentFile {
                             CardView(
                                 file: file,
+                                suggestions: viewModel.currentFileSuggestions,
                                 onKeep: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    viewModel.keepCurrentFile()
-                                        }
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                        viewModel.keepCurrentFile()
+                                    }
                                 },
                                 onBin: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    viewModel.binCurrentFile()
-                                        }
-                                    },
-                                    onPreview: {
-                                        QuickLookHelper.shared.preview(url: file.url)
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                        viewModel.binCurrentFile()
+                                    }
+                                },
+                                onPreview: {
+                                    QuickLookHelper.shared.preview(url: file.url)
+                                },
+                                onSuggestionTap: { suggestion in
+                                    viewModel.startGroupReview(for: suggestion)
                                 }
                             )
                             .id(file.id)
@@ -722,6 +729,198 @@ struct FilterView: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+}
+
+// MARK: - Group Review View
+
+struct GroupReviewView: View {
+    @ObservedObject var viewModel: DeclutterViewModel
+    @State private var selectedFiles: Set<UUID> = []
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button(action: {
+                    viewModel.showGroupReview = false
+                    viewModel.groupReviewFiles = []
+                    selectedFiles.removeAll()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                Text("Review Group")
+                    .font(.system(size: 16, weight: .semibold))
+                
+                Spacer()
+                
+                Text("\(selectedFiles.count) selected")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+            }
+            
+            Divider()
+                .opacity(0.2)
+            
+            // File grid
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 12)], spacing: 12) {
+                    ForEach(viewModel.groupReviewFiles) { file in
+                        GroupReviewFileCard(
+                            file: file,
+                            isSelected: selectedFiles.contains(file.id),
+                            onToggle: {
+                                if selectedFiles.contains(file.id) {
+                                    selectedFiles.remove(file.id)
+                                } else {
+                                    selectedFiles.insert(file.id)
+                                }
+                            },
+                            onPreview: {
+                                QuickLookHelper.shared.preview(url: file.url)
+                            }
+                        )
+                    }
+                }
+                .padding()
+            }
+            
+            // Action buttons
+            HStack(spacing: 16) {
+                Button(action: {
+                    selectedFiles = Set(viewModel.groupReviewFiles.map { $0.id })
+                }) {
+                    Text("Select All")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                Button(action: {
+                    let filesToBin = viewModel.groupReviewFiles.filter { selectedFiles.contains($0.id) }
+                    viewModel.binGroupFiles(filesToBin)
+                    selectedFiles.removeAll()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                        Text("Bin Selected (\(selectedFiles.count))")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .fill(Color.red)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedFiles.isEmpty)
+                
+                Button(action: {
+                    let filesToKeep = viewModel.groupReviewFiles.filter { selectedFiles.contains($0.id) }
+                    viewModel.keepGroupFiles(filesToKeep)
+                    selectedFiles.removeAll()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Keep Selected (\(selectedFiles.count))")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .fill(Color.green)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedFiles.isEmpty)
+            }
+            .padding()
+            .background {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+            }
+        }
+    }
+}
+
+struct GroupReviewFileCard: View {
+    let file: DesktopFile
+    let isSelected: Bool
+    let onToggle: () -> Void
+    let onPreview: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                // Thumbnail
+                Group {
+                    if let thumb = file.thumbnail {
+                        Image(nsImage: thumb)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Image(nsImage: file.icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 60, height: 60)
+                    }
+                }
+                .frame(width: 120, height: 120)
+                .cornerRadius(8)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)
+                }
+                
+                // Selection checkbox
+                Button(action: onToggle) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20))
+                        .foregroundColor(isSelected ? .blue : .white)
+                        .background {
+                            Circle()
+                                .fill(Color.black.opacity(0.3))
+                        }
+                }
+                .buttonStyle(.plain)
+                .padding(4)
+            }
+            
+            // File name
+            Text(file.name)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(height: 32)
+            
+            // Preview button
+            Button(action: onPreview) {
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.blue)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: 120)
+        .padding(8)
+        .background {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         }
     }
 }
