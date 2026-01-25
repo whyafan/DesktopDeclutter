@@ -9,11 +9,10 @@ struct DesktopDeclutterApp: App {
         // Main window that opens automatically - simplified approach
         WindowGroup {
             ContentView()
-                .frame(width: 420, height: 680)
+                .frame(minWidth: 420, minHeight: 680)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 420, height: 680)
-        .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
@@ -44,7 +43,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     window.setFrame(NSRect(x: x, y: y, width: windowWidth, height: windowHeight), display: true)
                 }
                 window.makeKeyAndOrderFront(nil)
-                window.level = .floating
                 window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             }
         }

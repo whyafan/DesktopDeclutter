@@ -1,10 +1,12 @@
 import SwiftUI
+import QuickLookUI
 
 struct ContentView: View {
     @StateObject private var viewModel = DeclutterViewModel()
     
     @State private var showSettings = false
     @State private var showStackedFiles = false
+    @State private var showBinnedFiles = false
     @State private var showFilters = false
     
     var body: some View {
@@ -45,8 +47,8 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .popover(isPresented: $showSettings, arrowEdge: .top) {
                     SettingsView(viewModel: viewModel)
-                        .frame(width: 200)
-                        .padding(12)
+                        .frame(width: 220)
+                        .padding(16)
                 }
                 
                 Spacer()
@@ -94,6 +96,32 @@ struct ContentView: View {
                     FilterView(viewModel: viewModel)
                         .frame(width: 200)
                         .padding(12)
+                }
+                
+                // Binned files button (only show if immediate binning is OFF and there are binned files)
+                if !viewModel.immediateBinning && viewModel.binnedFiles.count > 0 {
+                    Button(action: {
+                        showBinnedFiles.toggle()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash.fill")
+                                .font(.system(size: 13, weight: .medium))
+                            Text("\(viewModel.binnedFiles.count)")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background {
+                            Capsule()
+                                .fill(Color.red.opacity(0.15))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showBinnedFiles, arrowEdge: .top) {
+                        BinnedFilesView(viewModel: viewModel)
+                            .frame(width: 350, height: 500)
+                    }
                 }
                 
                 // Stacked files button
@@ -172,12 +200,12 @@ struct ContentView: View {
                                 suggestions: viewModel.currentFileSuggestions,
                                 onKeep: {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                        viewModel.keepCurrentFile()
+                                    viewModel.keepCurrentFile()
                                     }
                                 },
                                 onBin: {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                        viewModel.binCurrentFile()
+                                    viewModel.binCurrentFile()
                                     }
                                 },
                                 onPreview: {
@@ -410,7 +438,8 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(width: 420, height: 680)
+        .frame(minWidth: 420, minHeight: 680)
+        .background(QuickLookResponder())
         .onAppear {
             setupKeyboardShortcuts()
         }
@@ -459,6 +488,37 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Quick Look Responder Helper
+
+struct QuickLookResponder: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = QuickLookResponderView()
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        // Update if needed
+    }
+}
+
+class QuickLookResponderView: NSView {
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        return true
+    }
+    
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = QuickLookHelper.shared
+        panel.delegate = QuickLookHelper.shared
+    }
+    
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = nil
+        panel.delegate = nil
+    }
+}
+
 // MARK: - Visual Effect View (Material Blur)
 
 struct VisualEffectView: NSViewRepresentable {
@@ -485,20 +545,32 @@ struct SettingsView: View {
     @ObservedObject var viewModel: DeclutterViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Settings")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
             
-            Toggle("Trash Immediately", isOn: $viewModel.immediateBinning)
-                .font(.system(size: 12))
+            Divider()
+                .opacity(0.3)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Trash Immediately", isOn: Binding(
+                    get: { viewModel.immediateBinning },
+                    set: { newValue in
+                        viewModel.immediateBinning = newValue
+                    }
+                ))
+                .font(.system(size: 13, weight: .medium))
                 .toggleStyle(.switch)
-                .controlSize(.small)
-            
-            Text("When enabled, files are moved to Trash immediately instead of being collected for review.")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .controlSize(.regular)
+                
+                Text("When enabled, files are moved to Trash immediately. When disabled, files are collected for review.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -551,6 +623,149 @@ struct FloatingActionButton: View {
     }
 }
 
+// MARK: - Binned Files View
+
+struct BinnedFilesView: View {
+    @ObservedObject var viewModel: DeclutterViewModel
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Binned Files")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("\(viewModel.binnedFiles.count) file\(viewModel.binnedFiles.count == 1 ? "" : "s") pending review")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    viewModel.emptyBin()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Move All to Trash")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background {
+                        Capsule()
+                            .fill(Color.red)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+            }
+            
+            Divider()
+                .opacity(0.2)
+            
+            // File list
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(viewModel.binnedFiles) { file in
+                        HStack(spacing: 12) {
+                            // Thumbnail
+                            Group {
+                                if let thumb = file.thumbnail {
+                                    Image(nsImage: thumb)
+                                        .resizable()
+                                } else {
+                                    Image(nsImage: file.icon)
+                                        .resizable()
+                                }
+                            }
+                            .frame(width: 40, height: 40)
+                            .cornerRadius(8)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
+                            }
+                            
+                            // File info
+                            VStack(alignment: .leading, spacing: 2) {
+                                        Text(file.name)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            // Actions
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    QuickLookHelper.shared.preview(url: file.url)
+                                }) {
+                                    Image(systemName: "eye.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.blue)
+                                        .frame(width: 28, height: 28)
+                                        .background {
+                                            Circle()
+                                                .fill(Color.blue.opacity(0.1))
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .help("Preview")
+                                
+                                Button(action: {
+                                    viewModel.restoreFromBin(file)
+                                }) {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.blue)
+                                        .frame(width: 28, height: 28)
+                                        .background {
+                                            Circle()
+                                                .fill(Color.blue.opacity(0.1))
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .help("Restore to review")
+                                
+                                Button(action: {
+                                    viewModel.removeFromBin(file)
+                                }) {
+                                    Image(systemName: "trash.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.red)
+                                        .frame(width: 28, height: 28)
+                                        .background {
+                                            Circle()
+                                                .fill(Color.red.opacity(0.1))
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .help("Move to trash now")
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+}
+
 // MARK: - Stacked Files View
 
 struct StackedFilesView: View {
@@ -565,8 +780,8 @@ struct StackedFilesView: View {
                         .font(.system(size: 18, weight: .semibold))
                     Text("\(viewModel.stackedFiles.count) file\(viewModel.stackedFiles.count == 1 ? "" : "s") ready for removal")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                }
+                                            .foregroundColor(.secondary)
+                                    }
                 
                 Spacer()
                 
@@ -843,7 +1058,7 @@ struct GroupReviewView: View {
             // File grid with larger thumbnails
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
-                    ForEach(viewModel.groupReviewFiles) { file in
+                    ForEach(Array(viewModel.groupReviewFiles.enumerated()), id: \.element.id) { index, file in
                         GroupReviewFileCard(
                             file: file,
                             isSelected: selectedFiles.contains(file.id),
@@ -856,7 +1071,9 @@ struct GroupReviewView: View {
                                 }
                             },
                             onPreview: {
-                                QuickLookHelper.shared.preview(url: file.url)
+                                // Preview all files in group, starting with this one
+                                let urls = viewModel.groupReviewFiles.map { $0.url }
+                                QuickLookHelper.shared.preview(urls: urls, currentIndex: index)
                             },
                             onHover: { hovering in
                                 hoveredFileId = hovering ? file.id : nil
@@ -920,8 +1137,8 @@ struct GroupReviewView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(selectedFiles.isEmpty)
-            }
-            .padding()
+                    }
+                    .padding()
             .background {
                 VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
             }
@@ -1088,12 +1305,16 @@ struct GroupReviewFileCard: View {
             hoveredPreview = hovering
         }
         .onTapGesture {
-            // Double-click for preview, single click for selection
+            // Single click toggles selection
             onToggle()
         }
-        .onDoubleClick {
-            onPreview()
-        }
+        .gesture(
+            TapGesture(count: 2)
+                .onEnded { _ in
+                    // Double-click opens preview
+                    onPreview()
+                }
+        )
     }
 }
 

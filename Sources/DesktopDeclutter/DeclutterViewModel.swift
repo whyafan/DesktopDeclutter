@@ -243,9 +243,9 @@ class DeclutterViewModel: ObservableObject {
             }
         } else {
             // Collect for later review
-            binnedFiles.append(file)
+        binnedFiles.append(file)
             binnedCount += 1
-            reclaimedSpace += file.fileSize
+        reclaimedSpace += file.fileSize
         }
         
         moveToNext()
@@ -356,14 +356,14 @@ class DeclutterViewModel: ObservableObject {
             }
         }
         stackedFiles.removeAll()
-        loadFiles()
+        // Don't reset session - just clear the stack
     }
     
     private func moveToNext() {
         withAnimation {
             // Don't increment if we're already at the end
             if currentFileIndex < filteredFiles.count {
-                currentFileIndex += 1
+            currentFileIndex += 1
             }
             // If we've gone past the end, clamp to the end
             if currentFileIndex >= filteredFiles.count {
@@ -384,8 +384,45 @@ class DeclutterViewModel: ObservableObject {
             }
         }
         binnedFiles.removeAll()
-        reclaimedSpace = 0 // Reset or keep? Usually reset as they are now gone.
-        loadFiles()
+        reclaimedSpace = 0 // Reset reclaimed space since files are now in trash
+        // Don't reset session - just clear the bin
+    }
+    
+    func restoreFromBin(_ file: DesktopFile) {
+        // Remove from bin
+        binnedFiles.removeAll { $0.id == file.id }
+        
+        // Restore counters
+        binnedCount = max(0, binnedCount - 1)
+        reclaimedSpace = max(0, reclaimedSpace - file.fileSize)
+        
+        // Add back to files array at the beginning (so user can review it)
+        files.insert(file, at: 0)
+        
+        // If we're at the end, go back to review this file
+        if currentFileIndex >= filteredFiles.count {
+            currentFileIndex = 0
+        }
+        
+        // Regenerate thumbnails
+        generateThumbnails(for: currentFileIndex)
+    }
+    
+    func removeFromBin(_ file: DesktopFile) {
+        // Remove from bin
+        binnedFiles.removeAll { $0.id == file.id }
+        
+        // Restore counters
+        binnedCount = max(0, binnedCount - 1)
+        reclaimedSpace = max(0, reclaimedSpace - file.fileSize)
+        
+        // Move to trash immediately
+        do {
+            try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+            print("Moved to trash: \(file.name)")
+        } catch {
+            print("Failed to trash file \(file.name): \(error)")
+        }
     }
     
     var formattedReclaimedSpace: String {
@@ -409,9 +446,60 @@ class DeclutterViewModel: ObservableObject {
             return
         }
         
-        groupReviewFiles = groupFiles
+        // Sync thumbnails from main files array and generate missing ones
+        var syncedFiles: [DesktopFile] = []
+        for var file in groupFiles {
+            // Look up the file in the main files array to get its thumbnail if it exists
+            if let mainFileIndex = files.firstIndex(where: { $0.id == file.id }),
+               let thumbnail = files[mainFileIndex].thumbnail {
+                file.thumbnail = thumbnail
+            }
+            syncedFiles.append(file)
+        }
+        
+        groupReviewFiles = syncedFiles
         groupReviewSuggestion = suggestion
         showGroupReview = true
+        
+        // Generate thumbnails for any files in the group that don't have them yet
+        generateThumbnailsForGroupReview()
+    }
+    
+    private func generateThumbnailsForGroupReview() {
+        for (index, file) in groupReviewFiles.enumerated() {
+            // Skip if already generating or already has thumbnail
+            guard !thumbnailGenerationInProgress.contains(file.id),
+                  file.thumbnail == nil else {
+                continue
+            }
+            
+            // Mark as in progress
+            thumbnailGenerationInProgress.insert(file.id)
+            
+            FileScanner.shared.generateThumbnail(for: file) { [weak self] image in
+                guard let self = self else { return }
+                
+                // Update on main thread
+                Task { @MainActor in
+                    // Update the thumbnail in groupReviewFiles (reassign array to trigger SwiftUI update)
+                    if index < self.groupReviewFiles.count,
+                       self.groupReviewFiles[index].id == file.id {
+                        var updatedFiles = self.groupReviewFiles
+                        updatedFiles[index].thumbnail = image
+                        self.groupReviewFiles = updatedFiles
+                    }
+                    
+                    // Also update in main files array if it exists there
+                    if let mainFileIndex = self.files.firstIndex(where: { $0.id == file.id }) {
+                        var updatedMainFiles = self.files
+                        updatedMainFiles[mainFileIndex].thumbnail = image
+                        self.files = updatedMainFiles
+                    }
+                    
+                    self.thumbnailGenerationInProgress.remove(file.id)
+                }
+            }
+        }
     }
     
     func getGroupStats() -> (totalSize: Int64, dateRange: String?) {
@@ -466,7 +554,7 @@ class DeclutterViewModel: ObservableObject {
                 }
             ))
             
-        case .similarNames(let pattern, let count, _):
+        case .similarNames(_, let count, _):
             // For screenshots, suggest keeping recent ones
             let sorted = groupReviewFiles.sorted { file1, file2 in
                 let date1 = (try? FileManager.default.attributesOfItem(atPath: file1.url.path)[.creationDate] as? Date) ?? Date.distantPast
@@ -508,7 +596,7 @@ class DeclutterViewModel: ObservableObject {
                 ))
             }
             
-        case .sameSession(let count, _):
+        case .sameSession(_, _):
             actions.append(SmartAction(
                 title: "Keep all (created together)",
                 description: "These files are related",
