@@ -735,35 +735,83 @@ struct FilterView: View {
 
 // MARK: - Group Review View
 
+struct SmartAction {
+    let title: String
+    let description: String
+    let icon: String
+    let action: () -> Void
+}
+
 struct GroupReviewView: View {
     @ObservedObject var viewModel: DeclutterViewModel
     @State private var selectedFiles: Set<UUID> = []
+    @State private var hoveredFileId: UUID? = nil
+    
+    private var groupStats: (totalSize: Int64, dateRange: String?) {
+        viewModel.getGroupStats()
+    }
+    
+    private var smartActions: [SmartAction] {
+        viewModel.getSmartActions()
+    }
+    
+    private var groupTitle: String {
+        guard let suggestion = viewModel.groupReviewSuggestion else {
+            return "Review Group"
+        }
+        
+        switch suggestion.type {
+        case .duplicate(let count, _):
+            return "\(count) Duplicate Files"
+        case .similarNames(let pattern, let count, _):
+            return "\(count) \(pattern)"
+        case .sameSession(let count, _):
+            return "\(count) Files from Same Session"
+        default:
+            return "Review Group"
+        }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Button(action: {
-                    viewModel.showGroupReview = false
-                    viewModel.groupReviewFiles = []
-                    selectedFiles.removeAll()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.secondary)
+            // Header with context
+            VStack(spacing: 8) {
+                HStack {
+                    Button(action: {
+                        viewModel.showGroupReview = false
+                        viewModel.groupReviewFiles = []
+                        viewModel.groupReviewSuggestion = nil
+                        selectedFiles.removeAll()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 2) {
+                        Text(groupTitle)
+                            .font(.system(size: 16, weight: .semibold))
+                        
+                        if let dateRange = groupStats.dateRange {
+                            Text(dateRange)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(viewModel.groupReviewFiles.count) files")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(ByteCountFormatter.string(fromByteCount: groupStats.totalSize, countStyle: .file))
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                Text("Review Group")
-                    .font(.system(size: 16, weight: .semibold))
-                
-                Spacer()
-                
-                Text("\(selectedFiles.count) selected")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
             }
             .padding()
             .background {
@@ -773,13 +821,33 @@ struct GroupReviewView: View {
             Divider()
                 .opacity(0.2)
             
-            // File grid
+            // Smart Actions (if available)
+            if !smartActions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Array(smartActions.enumerated()), id: \.offset) { _, action in
+                            SmartActionCard(action: action)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .background {
+                    VisualEffectView(material: .contentBackground, blendingMode: .behindWindow)
+                }
+                
+                Divider()
+                    .opacity(0.2)
+            }
+            
+            // File grid with larger thumbnails
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 12)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
                     ForEach(viewModel.groupReviewFiles) { file in
                         GroupReviewFileCard(
                             file: file,
                             isSelected: selectedFiles.contains(file.id),
+                            isHovered: hoveredFileId == file.id,
                             onToggle: {
                                 if selectedFiles.contains(file.id) {
                                     selectedFiles.remove(file.id)
@@ -789,6 +857,9 @@ struct GroupReviewView: View {
                             },
                             onPreview: {
                                 QuickLookHelper.shared.preview(url: file.url)
+                            },
+                            onHover: { hovering in
+                                hoveredFileId = hovering ? file.id : nil
                             }
                         )
                     }
@@ -858,16 +929,73 @@ struct GroupReviewView: View {
     }
 }
 
+// MARK: - Smart Action Card
+
+struct SmartActionCard: View {
+    let action: SmartAction
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action.action) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: action.icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.blue)
+                    
+                    Text(action.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+                
+                Text(action.description)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(12)
+            .frame(width: 200)
+            .background {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.blue.opacity(isHovered ? 0.15 : 0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.blue.opacity(isHovered ? 0.3 : 0.15), lineWidth: 1)
+                    }
+            }
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}
+
 struct GroupReviewFileCard: View {
     let file: DesktopFile
     let isSelected: Bool
+    let isHovered: Bool
     let onToggle: () -> Void
     let onPreview: () -> Void
+    let onHover: (Bool) -> Void
+    
+    @State private var hoveredPreview = false
+    
+    private var fileDateString: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        if let date = try? FileManager.default.attributesOfItem(atPath: file.url.path)[.creationDate] as? Date {
+            return formatter.localizedString(for: date, relativeTo: Date())
+        }
+        return "Recently"
+    }
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             ZStack(alignment: .topTrailing) {
-                // Thumbnail
+                // Thumbnail - larger and better quality
                 Group {
                     if let thumb = file.thumbnail {
                         Image(nsImage: thumb)
@@ -877,50 +1005,94 @@ struct GroupReviewFileCard: View {
                         Image(nsImage: file.icon)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 60, height: 60)
+                            .frame(width: 80, height: 80)
+                            .foregroundColor(.secondary)
                     }
                 }
-                .frame(width: 120, height: 120)
-                .cornerRadius(8)
+                .frame(width: 160, height: 160)
+                .cornerRadius(12)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.blue : (isHovered ? Color.blue.opacity(0.3) : Color.clear), lineWidth: isSelected ? 3 : 2)
                 }
+                .shadow(color: .black.opacity(isHovered ? 0.2 : 0.1), radius: isHovered ? 8 : 4)
+                .scaleEffect(hoveredPreview ? 1.05 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: hoveredPreview)
                 
                 // Selection checkbox
                 Button(action: onToggle) {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20))
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(isSelected ? .blue : .white)
                         .background {
                             Circle()
-                                .fill(Color.black.opacity(0.3))
+                                .fill(Color.black.opacity(0.5))
+                                .frame(width: 32, height: 32)
                         }
                 }
                 .buttonStyle(.plain)
-                .padding(4)
+                .padding(6)
+                
+                // Preview overlay on hover
+                if isHovered {
+                    Button(action: onPreview) {
+                        VStack(spacing: 4) {
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Preview")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.black.opacity(0.7))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.combined(with: .scale))
+                }
             }
             
-            // File name
-            Text(file.name)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(height: 32)
-            
-            // Preview button
-            Button(action: onPreview) {
-                Image(systemName: "eye.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.blue)
+            // File info
+            VStack(spacing: 4) {
+                Text(file.name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(height: 32)
+                
+                HStack(spacing: 4) {
+                    Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    
+                    Text("•")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    
+                    Text(fileDateString)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
             }
-            .buttonStyle(.plain)
         }
-        .frame(width: 120)
-        .padding(8)
+        .frame(width: 160)
+        .padding(10)
         .background {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered ? 0.7 : 0.5))
+        }
+        .onHover { hovering in
+            onHover(hovering)
+            hoveredPreview = hovering
+        }
+        .onTapGesture {
+            // Double-click for preview, single click for selection
+            onToggle()
+        }
+        .onDoubleClick {
+            onPreview()
         }
     }
 }

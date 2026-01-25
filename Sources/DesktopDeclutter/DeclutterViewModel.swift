@@ -30,6 +30,7 @@ class DeclutterViewModel: ObservableObject {
     @Published var currentFileSuggestions: [FileSuggestion] = []
     @Published var showGroupReview = false
     @Published var groupReviewFiles: [DesktopFile] = []
+    @Published var groupReviewSuggestion: FileSuggestion? = nil
     private var suggestionCache: [UUID: [FileSuggestion]] = [:]
     
     var filteredFiles: [DesktopFile] {
@@ -409,10 +410,133 @@ class DeclutterViewModel: ObservableObject {
         }
         
         groupReviewFiles = groupFiles
+        groupReviewSuggestion = suggestion
         showGroupReview = true
     }
     
+    func getGroupStats() -> (totalSize: Int64, dateRange: String?) {
+        let totalSize = groupReviewFiles.reduce(0) { $0 + $1.fileSize }
+        
+        // Get date range
+        let dates = groupReviewFiles.compactMap { file -> Date? in
+            try? FileManager.default.attributesOfItem(atPath: file.url.path)[.creationDate] as? Date
+        }
+        
+        guard let earliest = dates.min(), let latest = dates.max() else {
+            return (totalSize, nil)
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        
+        if Calendar.current.isDate(earliest, inSameDayAs: latest) {
+            formatter.dateStyle = .none
+            return (totalSize, "Today \(formatter.string(from: earliest)) - \(formatter.string(from: latest))")
+        } else {
+            return (totalSize, "\(formatter.string(from: earliest)) - \(formatter.string(from: latest))")
+        }
+    }
+    
+    func getSmartActions() -> [SmartAction] {
+        guard let suggestion = groupReviewSuggestion else { return [] }
+        
+        var actions: [SmartAction] = []
+        let totalSize = groupReviewFiles.reduce(0) { $0 + $1.fileSize }
+        let sizeMB = Double(totalSize) / (1024 * 1024)
+        
+        switch suggestion.type {
+        case .duplicate(let count, _):
+            // Sort by date (newest first)
+            let sorted = groupReviewFiles.sorted { file1, file2 in
+                let date1 = (try? FileManager.default.attributesOfItem(atPath: file1.url.path)[.creationDate] as? Date) ?? Date.distantPast
+                let date2 = (try? FileManager.default.attributesOfItem(atPath: file2.url.path)[.creationDate] as? Date) ?? Date.distantPast
+                return date1 > date2
+            }
+            
+            actions.append(SmartAction(
+                title: "Keep newest, delete others",
+                description: "Keep 1 file, delete \(count - 1)",
+                icon: "clock.fill",
+                action: {
+                    let toKeep = [sorted.first!]
+                    let toBin = Array(sorted.dropFirst())
+                    self.keepGroupFiles(toKeep)
+                    self.binGroupFiles(toBin)
+                }
+            ))
+            
+        case .similarNames(let pattern, let count, _):
+            // For screenshots, suggest keeping recent ones
+            let sorted = groupReviewFiles.sorted { file1, file2 in
+                let date1 = (try? FileManager.default.attributesOfItem(atPath: file1.url.path)[.creationDate] as? Date) ?? Date.distantPast
+                let date2 = (try? FileManager.default.attributesOfItem(atPath: file2.url.path)[.creationDate] as? Date) ?? Date.distantPast
+                return date1 > date2
+            }
+            
+            let keepCount = min(5, count)
+            actions.append(SmartAction(
+                title: "Keep newest \(keepCount), delete rest",
+                description: "Free \(String(format: "%.1f", sizeMB * Double(count - keepCount) / Double(count))) MB",
+                icon: "sparkles",
+                action: {
+                    let toKeep = Array(sorted.prefix(keepCount))
+                    let toBin = Array(sorted.dropFirst(keepCount))
+                    self.keepGroupFiles(toKeep)
+                    self.binGroupFiles(toBin)
+                }
+            ))
+            
+            // Delete all older than 1 week
+            let oneWeekAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+            let oldFiles = groupReviewFiles.filter { file in
+                guard let date = try? FileManager.default.attributesOfItem(atPath: file.url.path)[.creationDate] as? Date else {
+                    return false
+                }
+                return date < oneWeekAgo
+            }
+            
+            if !oldFiles.isEmpty {
+                let oldSizeMB = Double(oldFiles.reduce(0) { $0 + $1.fileSize }) / (1024 * 1024)
+                actions.append(SmartAction(
+                    title: "Delete files older than 1 week",
+                    description: "\(oldFiles.count) files, \(String(format: "%.1f", oldSizeMB)) MB",
+                    icon: "calendar.badge.clock",
+                    action: {
+                        self.binGroupFiles(oldFiles)
+                    }
+                ))
+            }
+            
+        case .sameSession(let count, _):
+            actions.append(SmartAction(
+                title: "Keep all (created together)",
+                description: "These files are related",
+                icon: "checkmark.circle.fill",
+                action: {
+                    self.keepGroupFiles(self.groupReviewFiles)
+                }
+            ))
+            
+            actions.append(SmartAction(
+                title: "Delete all",
+                description: "Free \(String(format: "%.1f", sizeMB)) MB",
+                icon: "trash.fill",
+                action: {
+                    self.binGroupFiles(self.groupReviewFiles)
+                }
+            ))
+            
+        default:
+            break
+        }
+        
+        return actions
+    }
+    
     func binGroupFiles(_ filesToBin: [DesktopFile]) {
+        guard !filesToBin.isEmpty else { return }
+        
         for file in filesToBin {
             if files.contains(where: { $0.id == file.id }) {
                 // Remove from files and bin
@@ -440,18 +564,32 @@ class DeclutterViewModel: ObservableObject {
             suggestionCache.removeValue(forKey: file.id)
         }
         
-        showGroupReview = false
-        groupReviewFiles = []
+        // Remove binned files from group review
+        groupReviewFiles.removeAll { file in filesToBin.contains { $0.id == file.id } }
+        
+        // If all files processed, exit group review
+        if groupReviewFiles.isEmpty {
+            showGroupReview = false
+            groupReviewSuggestion = nil
+        }
     }
     
     func keepGroupFiles(_ filesToKeep: [DesktopFile]) {
+        guard !filesToKeep.isEmpty else { return }
+        
         for file in filesToKeep {
             files.removeAll { $0.id == file.id }
             keptCount += 1
             suggestionCache.removeValue(forKey: file.id)
         }
         
-        showGroupReview = false
-        groupReviewFiles = []
+        // Remove kept files from group review
+        groupReviewFiles.removeAll { file in filesToKeep.contains { $0.id == file.id } }
+        
+        // If all files processed, exit group review
+        if groupReviewFiles.isEmpty {
+            showGroupReview = false
+            groupReviewSuggestion = nil
+        }
     }
 }
