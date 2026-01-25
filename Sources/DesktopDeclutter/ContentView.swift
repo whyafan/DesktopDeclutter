@@ -5,11 +5,30 @@ struct ContentView: View {
     
     @State private var showSettings = false
     @State private var showStackedFiles = false
+    @State private var showFilters = false
     
     var body: some View {
         VStack(spacing: 0) {
             // Unified Toolbar with Material Effect
             HStack(spacing: 12) {
+                // Undo button (only visible when undo is available)
+                if viewModel.canUndo {
+                    Button(action: {
+                        _ = viewModel.undoLastAction()
+                    }) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                            .background {
+                                Circle()
+                                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .help("Undo last action (⌘Z)")
+                }
+                
                 // Settings button
                 Button(action: {
                     showSettings.toggle()
@@ -34,7 +53,7 @@ struct ContentView: View {
                 
                 // Progress Bar (Center)
                 VStack(spacing: 4) {
-                    ProgressView(value: Double(viewModel.currentFileIndex), total: Double(max(viewModel.totalFilesCount, 1)))
+                    ProgressView(value: Double(viewModel.currentFileIndex), total: Double(max(viewModel.filteredFiles.count, 1)))
                         .progressViewStyle(.linear)
                         .frame(width: 180)
                     
@@ -44,13 +63,38 @@ struct ContentView: View {
                         Text("of")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundColor(.secondary)
-                        Text("\(viewModel.totalFilesCount)")
+                        Text("\(viewModel.filteredFiles.count)")
                             .font(.system(size: 11, weight: .semibold))
+                        if viewModel.selectedFileTypeFilter != nil {
+                            Text("(\(viewModel.totalFilesCount) total)")
+                                .font(.system(size: 9, weight: .regular))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .foregroundColor(.primary)
                 }
                 
                 Spacer()
+                
+                // Filter button
+                Button(action: {
+                    showFilters.toggle()
+                }) {
+                    Image(systemName: viewModel.selectedFileTypeFilter != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(viewModel.selectedFileTypeFilter != nil ? .blue : .secondary)
+                        .frame(width: 28, height: 28)
+                        .background {
+                            Circle()
+                                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
+                        }
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showFilters, arrowEdge: .top) {
+                    FilterView(viewModel: viewModel)
+                        .frame(width: 200)
+                        .padding(12)
+                }
                 
                 // Stacked files button
                 if viewModel.stackedFiles.count > 0 {
@@ -76,20 +120,6 @@ struct ContentView: View {
                         StackedFilesView(viewModel: viewModel)
                             .frame(width: 350, height: 500)
                     }
-                } else {
-                    // Placeholder for when no stacked files
-                    Button(action: {}) {
-                        Image(systemName: "square.stack")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background {
-                                Circle()
-                                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .opacity(0.3)
                 }
             }
             .padding(.horizontal, 16)
@@ -381,8 +411,15 @@ struct ContentView: View {
     
     private func setupKeyboardShortcuts() {
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Handle Cmd+Z for undo
             if event.modifierFlags.contains(.command) {
-                return nil // Let system handle Cmd+key shortcuts
+                if event.keyCode == 6 { // Z key
+                    if viewModel.canUndo {
+                        _ = viewModel.undoLastAction()
+                        return nil
+                    }
+                }
+                return nil // Let system handle other Cmd+key shortcuts
             }
             
             switch event.keyCode {
@@ -630,6 +667,60 @@ struct StackedFilesView: View {
                     }
                 }
                 .padding()
+            }
+        }
+    }
+}
+
+// MARK: - Filter View
+
+struct FilterView: View {
+    @ObservedObject var viewModel: DeclutterViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Filter by Type")
+                .font(.system(size: 13, weight: .semibold))
+            
+            // All files option
+            Button(action: {
+                viewModel.setFileTypeFilter(nil)
+            }) {
+                HStack {
+                    Image(systemName: viewModel.selectedFileTypeFilter == nil ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(viewModel.selectedFileTypeFilter == nil ? .blue : .secondary)
+                    Text("All Files")
+                        .font(.system(size: 12))
+                    Spacer()
+                    Text("\(viewModel.totalFilesCount)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            
+            Divider()
+            
+            // File type filters
+            ForEach(FileType.allCases, id: \.self) { fileType in
+                Button(action: {
+                    viewModel.setFileTypeFilter(fileType)
+                }) {
+                    HStack {
+                        Image(systemName: fileType.icon)
+                            .foregroundColor(.secondary)
+                            .frame(width: 20)
+                        Image(systemName: viewModel.selectedFileTypeFilter == fileType ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(viewModel.selectedFileTypeFilter == fileType ? .blue : .secondary)
+                        Text(fileType.displayName)
+                            .font(.system(size: 12))
+                        Spacer()
+                        Text("\(viewModel.files.filter { $0.fileType == fileType }.count)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
     }
