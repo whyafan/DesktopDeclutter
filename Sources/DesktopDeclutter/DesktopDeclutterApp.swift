@@ -6,7 +6,7 @@ struct DesktopDeclutterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        // Main window that opens automatically - simplified approach
+        // Main window that opens automatically
         WindowGroup {
             ContentView()
                 .frame(minWidth: 420, minHeight: 680)
@@ -17,11 +17,25 @@ struct DesktopDeclutterApp: App {
             CommandGroup(replacing: .newItem) {}
         }
         
-        // Menu bar icon as secondary option
+        // Menu bar icon for quick access
         MenuBarExtra("Declutter", systemImage: "square.stack.3d.up.fill") {
-            ContentView()
+            Button("Show Window") {
+                // Show all windows
+                for window in NSApplication.shared.windows {
+                    window.makeKeyAndOrderFront(nil)
+                }
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            
+            Divider()
+            
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q", modifiers: .command)
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
     }
 }
 
