@@ -1,9 +1,10 @@
-# Desktop Declutter
+# MacOS Desktop Declutter
 
 A macOS app to help declutter your desktop. Review files quickly with a swipe-based interface, get smart suggestions for related files, and organize your desktop efficiently.
 
 Built with SwiftUI using Cursor and Composer-1. May have bugs - feel free to improve or modify as needed.
 
+![Desktop Declutter Demo](desktopdeclutter.gif)
 
 ## Features
 
