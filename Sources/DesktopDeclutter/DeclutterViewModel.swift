@@ -134,7 +134,7 @@ class DeclutterViewModel: ObservableObject {
     func loadFiles() {
         self.errorMessage = nil
         do {
-            let loadedFiles = try FileScanner.shared.scanDesktop()
+            let loadedFiles = try FileScanner.shared.scanCurrentFolder()
             self.files = loadedFiles
             self.currentFileIndex = 0
             self.binnedFiles = []
