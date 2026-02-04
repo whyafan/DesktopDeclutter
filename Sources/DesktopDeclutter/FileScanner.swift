@@ -1,152 +1,131 @@
 import Foundation
-import Combine
 import AppKit
+import QuickLookThumbnailing
 
-class DeclutterViewModel: ObservableObject {
-    @Published var files: [DesktopFile] = []
-    @Published var errorMessage: String?
-    @Published var currentFileIndex: Int?
-    @Published var selectedFolderURL: URL?
-
-    /// True while an Accept/Dump action is being applied, to prevent double-processing.
-    @Published var isPerformingFileAction: Bool = false
-
-    /// True while the folder picker is being presented.
-    private var isPresentingFolderPicker: Bool = false
-
-    /// ISO-8601 timestamp formatter for terminal logs.
-    private let logFormatter = ISO8601DateFormatter()
-
-    /// Log helper (prints to terminal when running via `swift run` / Xcode).
-    private func log(_ message: String) {
-        let ts = logFormatter.string(from: Date())
-        print("[DesktopDeclutter \(ts)] \(message)")
-    }
-
-    /// Prompt the user to choose a folder to scan.
-    ///
-    /// Uses `NSOpenPanel.begin` (non-blocking) so it works reliably at app launch.
-    @MainActor
-    func promptForFolderAndLoad() {
-        guard !isPresentingFolderPicker else {
-            log("Folder picker already presenting; ignoring duplicate request.")
-            return
+enum FileType: String, CaseIterable {
+    case image
+    case video
+    case document
+    case audio
+    case archive
+    case code
+    case other
+    
+    var displayName: String {
+        switch self {
+        case .image: return "Images"
+        case .video: return "Videos"
+        case .document: return "Documents"
+        case .audio: return "Audio"
+        case .archive: return "Archives"
+        case .code: return "Code"
+        case .other: return "Other"
         }
-        isPresentingFolderPicker = true
+    }
+    
+    var icon: String {
+        switch self {
+        case .image: return "photo.fill"
+        case .video: return "video.fill"
+        case .document: return "doc.fill"
+        case .audio: return "music.note"
+        case .archive: return "archivebox.fill"
+        case .code: return "curlybraces"
+        case .other: return "doc.text.fill"
+        }
+    }
+    
+    static func from(url: URL) -> FileType {
+        let ext = url.pathExtension.lowercased()
+        
+        let imageExts = ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "heic", "webp", "svg", "ico"]
+        let videoExts = ["mp4", "mov", "avi", "mkv", "wmv", "flv", "webm", "m4v", "3gp"]
+        let docExts = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "pages", "numbers", "key"]
+        let audioExts = ["mp3", "wav", "aac", "flac", "m4a", "ogg", "wma"]
+        let archiveExts = ["zip", "rar", "7z", "tar", "gz", "bz2", "dmg", "iso"]
+        let codeExts = ["swift", "js", "ts", "py", "java", "cpp", "c", "h", "html", "css", "json", "xml", "yaml", "yml", "sh", "md"]
+        
+        if imageExts.contains(ext) { return .image }
+        if videoExts.contains(ext) { return .video }
+        if docExts.contains(ext) { return .document }
+        if audioExts.contains(ext) { return .audio }
+        if archiveExts.contains(ext) { return .archive }
+        if codeExts.contains(ext) { return .code }
+        return .other
+    }
+}
 
-        log("Presenting folder picker…")
+struct DesktopFile: Identifiable, Equatable {
+    let id: UUID
+    let url: URL
+    let name: String
+    let fileSize: Int64
+    var thumbnail: NSImage?
+    
+    var fileType: FileType {
+        FileType.from(url: url)
+    }
+    
+    // Default fallback icon
+    var icon: NSImage {
+        NSWorkspace.shared.icon(forFile: url.path)
+    }
+    
+    static func == (lhs: DesktopFile, rhs: DesktopFile) -> Bool {
+        lhs.id == rhs.id
+    }
+}
 
-        // Bring the app to front so the open panel is visible.
-        NSApp.activate(ignoringOtherApps: true)
-
-        let panel = NSOpenPanel()
-        panel.title = "Choose a folder to declutter"
-        panel.prompt = "Use Folder"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-
-        panel.begin { [weak self] response in
-            guard let self else { return }
-            Task { @MainActor in
-                self.isPresentingFolderPicker = false
-
-                if response == .OK, let url = panel.url {
-                    self.selectedFolderURL = url
-                    self.log("Folder selected: \(url.path)")
-
-                    // Update scanner to use the chosen folder.
-                    FileScanner.shared.useCustomURL(url)
-
-                    // Load files from the newly-selected folder.
-                    self.loadFiles()
-                } else {
-                    self.log("Folder picker cancelled.")
+class FileScanner {
+    static let shared = FileScanner()
+    
+    private let fileManager = FileManager.default
+    
+    func scanDesktop() throws -> [DesktopFile] {
+        guard let desktopURL = fileManager.urls(for: .desktopDirectory, in: .userDomainMask).first else {
+            throw NSError(domain: "DesktopDeclutter", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find Desktop directory."])
+        }
+        
+         if !fileManager.isReadableFile(atPath: desktopURL.path) {
+             throw NSError(domain: "DesktopDeclutter", code: 2, userInfo: [NSLocalizedDescriptionKey: "Access to Desktop denied. Please grant permission in System Settings."])
+        }
+        
+        let fileURLs = try fileManager.contentsOfDirectory(at: desktopURL, includingPropertiesForKeys: [.fileSizeKey])
+        
+        var files: [DesktopFile] = []
+        
+        for url in fileURLs {
+            let filename = url.lastPathComponent
+            if !filename.hasPrefix(".") && !filename.hasPrefix("$") {
+                
+                // Get File Size
+                let resources = try? url.resourceValues(forKeys: [.fileSizeKey])
+                let size = Int64(resources?.fileSize ?? 0)
+                
+                files.append(DesktopFile(id: UUID(), url: url, name: filename, fileSize: size, thumbnail: nil))
+            }
+        }
+        return files
+    }
+    
+    // Async thumbnail generation
+    func generateThumbnail(for file: DesktopFile, completion: @escaping (NSImage?) -> Void) {
+        let size = CGSize(width: 300, height: 300)
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        
+        let request = QLThumbnailGenerator.Request(fileAt: file.url, size: size, scale: scale, representationTypes: .thumbnail)
+        
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { (thumbnail, error) in
+            if let thumbnail = thumbnail {
+                DispatchQueue.main.async {
+                    completion(thumbnail.nsImage)
+                }
+            } else {
+                // Fallback or error, return nil so UI uses icon
+                DispatchQueue.main.async {
+                    completion(nil)
                 }
             }
-        }
-    }
-
-    /// Prompt for a folder only once per app run (if nothing has been selected yet).
-    @MainActor
-    func promptForFolderIfNeeded() {
-        guard !hasPromptedForFolder else { return }
-        hasPromptedForFolder = true
-
-        if selectedFolderURL == nil {
-            log("No folder selected yet; prompting on launch.")
-            promptForFolderAndLoad()
-        } else {
-            log("Folder already selected; skipping launch prompt.")
-        }
-    }
-
-    func loadFiles() {
-        log("Scanning folder: \(selectedFolderURL?.path ?? "(default)")")
-        do {
-            let loadedFiles = try FileScanner.shared.scanCurrentFolder()
-            DispatchQueue.main.async {
-                self.files = loadedFiles
-                self.currentFileIndex = self.files.isEmpty ? nil : 0
-                self.log("Scan complete. Found \(loadedFiles.count) items.")
-            }
-        } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = error.localizedDescription
-                self.log("Scan failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func acceptCurrentFile() {
-        guard !isPerformingFileAction else {
-            log("Ignoring action: already performing a file operation.")
-            return
-        }
-        isPerformingFileAction = true
-        defer { isPerformingFileAction = false }
-
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Action START: ACCEPT on index \(idx): \(files[idx].name)")
-        } else {
-            log("Action START: ACCEPT but currentFileIndex is invalid.")
-        }
-
-        // Implementation for accepting the file (e.g., keep as is, or move to accepted folder)
-        // After operation completes:
-        log("Action END: ACCEPT")
-
-        currentFileIndex = (currentFileIndex ?? 0) + 1
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Next selected index \(idx): \(files[idx].name)")
-        } else {
-            log("No next file selected (end of list or invalid index).")
-        }
-    }
-
-    func dumpCurrentFile() {
-        guard !isPerformingFileAction else {
-            log("Ignoring action: already performing a file operation.")
-            return
-        }
-        isPerformingFileAction = true
-        defer { isPerformingFileAction = false }
-
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Action START: DUMP on index \(idx): \(files[idx].name)")
-        } else {
-            log("Action START: DUMP but currentFileIndex is invalid.")
-        }
-
-        // Implementation for dumping the file (e.g., move to trash or delete)
-        // After operation completes:
-        log("Action END: DUMP")
-
-        currentFileIndex = (currentFileIndex ?? 0) + 1
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Next selected index \(idx): \(files[idx].name)")
-        } else {
-            log("No next file selected (end of list or invalid index).")
         }
     }
 }
