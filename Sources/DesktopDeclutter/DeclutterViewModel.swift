@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @MainActor
@@ -6,6 +7,8 @@ class DeclutterViewModel: ObservableObject {
     @Published var currentFileIndex: Int = 0
     @Published var binnedFiles: [DesktopFile] = []
     @Published var errorMessage: String? = nil
+    @Published var selectedFolderURL: URL? = nil
+    @Published var breadcrumbText: String = ""
     
     @Published var reclaimedSpace: Int64 = 0
     
@@ -16,15 +19,24 @@ class DeclutterViewModel: ObservableObject {
     
     // Modes
     @Published var immediateBinning: Bool = true
+    @Published var isGridMode: Bool = false
     
     // Stacked files (for later review)
     @Published var stackedFiles: [DesktopFile] = []
+    
+    // Shake Animation State
+    @Published var shakingFileId: UUID? = nil
+    @Published var viewedFileIds: Set<UUID> = [] // Track files that have been viewed
+    private var shakeTask: Task<Void, Never>? = nil
     
     // Preview
     @Published var previewUrl: URL? = nil
     
     // Filters
     @Published var selectedFileTypeFilter: FileType? = nil
+    
+    // Cloud
+    @Published var cloudDestinationURL: URL? = nil
     
     // Suggestions
     @Published var currentFileSuggestions: [FileSuggestion] = []
@@ -52,6 +64,11 @@ class DeclutterViewModel: ObservableObject {
             return nil 
         }
         let file = filteredFiles[currentFileIndex]
+        
+        // Mark as viewed
+        if !viewedFileIds.contains(file.id) {
+            viewedFileIds.insert(file.id)
+        }
         
         // Only update suggestions when file actually changes
         if lastSuggestionFileId != file.id {
@@ -110,25 +127,68 @@ class DeclutterViewModel: ObservableObject {
         currentFileIndex >= filteredFiles.count
     }
     
-    // Undo/Redo
-    private struct Action: Equatable {
-        let type: ActionType
-        let file: DesktopFile
-        let previousIndex: Int
-        let fileOriginalIndex: Int? // Original position in files array
-        
-        enum ActionType: Equatable {
-            case keep
-            case bin
-            case stack
-        }
+
+    
+    /// Prevent duplicate folder-picker presentation.
+    private var isPresentingFolderPicker = false
+    /// Ensure we only prompt once per app launch.
+    private var hasPromptedForFolder = false
+    
+    private struct FolderContext {
+        let url: URL
+        let files: [DesktopFile]
+        let currentFileIndex: Int
+        let selectedFileTypeFilter: FileType?
+        let totalFilesCount: Int
+        let suggestionCache: [UUID: [FileSuggestion]]
+        let lastSuggestionFileId: UUID?
+        let currentFileSuggestions: [FileSuggestion]
+        let thumbnailGenerationInProgress: Set<UUID>
     }
     
-    private var actionHistory: [Action] = []
-    private var maxHistorySize = 50
-    
-    init() {
-        loadFiles()
+    private var folderStack: [FolderContext] = []
+
+    init() {}
+
+    /// Prompt the user to choose a folder to scan on launch.
+    /// Uses NSOpenPanel.begin for non-blocking presentation.
+    @MainActor
+    func promptForFolderIfNeeded() {
+        guard !hasPromptedForFolder else { return }
+        hasPromptedForFolder = true
+
+        if selectedFolderURL == nil {
+            promptForFolderAndLoad()
+        }
+    }
+
+    @MainActor
+    func promptForFolderAndLoad() {
+        guard !isPresentingFolderPicker else { return }
+        isPresentingFolderPicker = true
+
+        // Bring app to front so the panel is visible.
+        NSApp.activate(ignoringOtherApps: true)
+
+        let panel = NSOpenPanel()
+        panel.title = "Choose a folder to declutter"
+        panel.prompt = "Use Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+
+        panel.begin { [weak self] response in
+            guard let self else { return }
+            Task { @MainActor in
+                self.isPresentingFolderPicker = false
+
+                if response == .OK, let url = panel.url {
+                    self.selectedFolderURL = url
+                    FileScanner.shared.useCustomURL(url)
+                    self.loadFiles()
+                }
+            }
+        }
     }
     
     func loadFiles() {
@@ -148,9 +208,20 @@ class DeclutterViewModel: ObservableObject {
             self.currentFileSuggestions = []
             self.lastSuggestionFileId = nil
             self.thumbnailGenerationInProgress.removeAll()
+            self.totalFilesCount = loadedFiles.count
+            updateBreadcrumbs()
             
             // Trigger thumbnail generation for the first file only (lazy load others)
             generateThumbnails(for: 0)
+            
+            // If empty, enforce choosing another folder (top-level only).
+            if loadedFiles.isEmpty {
+                if folderStack.isEmpty {
+                    promptForFolderAndLoad()
+                } else {
+                    returnToParentFolder()
+                }
+            }
         } catch {
             self.errorMessage = error.localizedDescription
             self.files = []
@@ -203,76 +274,142 @@ class DeclutterViewModel: ObservableObject {
     func keepCurrentFile() {
         guard let file = currentFile else { return }
         
-        // Find original index in files array
-        let originalIndex = files.firstIndex(where: { $0.id == file.id })
-        
-        // Record action for undo
-        recordAction(.keep, file: file, originalIndex: originalIndex)
-        
-        // Remove from files array
-        files.removeAll { $0.id == file.id }
-        
-        keptCount += 1
-        moveToNext()
+        // Find the actual file in the main 'files' array and update its decision
+        if let index = files.firstIndex(where: { $0.id == file.id }) {
+            files[index].decision = .kept
+            keptCount += 1
+            recordAction(.keep, file: file, decision: .kept)
+            moveToNext()
+        }
     }
     
     func binCurrentFile() {
         guard let file = currentFile else { return }
         
-        // Find original index in files array
-        let originalIndex = files.firstIndex(where: { $0.id == file.id })
-        
-        // Record action for undo
-        recordAction(.bin, file: file, originalIndex: originalIndex)
-        
-        // Remove from files array
-        files.removeAll { $0.id == file.id }
-        
-        if immediateBinning {
-            // Immediately move to trash
-            do {
-                try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
-                binnedCount += 1
-                reclaimedSpace += file.fileSize
-                print("Immediately moved to trash: \(file.name)")
-            } catch {
-                print("Failed to trash file \(file.name): \(error)")
-                // Still count it as binned even if trash failed
-                binnedCount += 1
-                reclaimedSpace += file.fileSize
-            }
-        } else {
-            // Collect for later review
-        binnedFiles.append(file)
+        // Find the actual file in the main 'files' array and update its decision
+        if let index = files.firstIndex(where: { $0.id == file.id }) {
+            files[index].decision = .binned
             binnedCount += 1
-        reclaimedSpace += file.fileSize
+            reclaimedSpace += file.fileSize
+            
+            if immediateBinning {
+                // Immediately move to trash
+                do {
+                    try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+                    print("Immediately moved to trash: \(file.name)")
+                } catch {
+                    print("Failed to trash file \(file.name): \(error)")
+                    // Still count it as binned even if trash failed
+                }
+            } else {
+                // Collect for later review
+                binnedFiles.append(file)
+            }
+            recordAction(.bin, file: file, decision: .binned)
+            moveToNext()
         }
-        
-        moveToNext()
     }
     
     func stackCurrentFile() {
         guard let file = currentFile else { return }
         
-        // Find original index in files array
-        let originalIndex = files.firstIndex(where: { $0.id == file.id })
-        
-        // Record action for undo
-        recordAction(.stack, file: file, originalIndex: originalIndex)
-        
-        // Remove from files array
-        files.removeAll { $0.id == file.id }
+        // Mark as stacked
+        if let index = files.firstIndex(where: { $0.id == file.id }) {
+            files[index].decision = .stacked
+        }
         
         stackedFiles.append(file)
+        recordAction(.stack, file: file)
         moveToNext()
     }
     
-    private func recordAction(_ type: Action.ActionType, file: DesktopFile, originalIndex: Int?) {
+    func moveToCloud(_ file: DesktopFile) {
+        guard let destination = cloudDestinationURL else {
+            print("No cloud path configured")
+            return
+        }
+        
+        // Move file
+        do {
+            let descURL = destination.appendingPathComponent(file.name)
+            try FileManager.default.moveItem(at: file.url, to: descURL)
+            
+            // Update state
+            if let index = files.firstIndex(where: { $0.id == file.id }) {
+                files[index].decision = .cloud
+            }
+            
+            recordAction(.cloud, file: file, decision: .cloud)
+            moveToNext()
+        } catch {
+            print("Failed to move to cloud: \(error)")
+            errorMessage = "Failed to move to Cloud: \(error.localizedDescription)"
+        }
+    }
+    
+    func moveGroupToCloud(_ filesToMove: [DesktopFile]) {
+        guard let destination = cloudDestinationURL else { return }
+        
+        for file in filesToMove {
+            do {
+                let descURL = destination.appendingPathComponent(file.name)
+                try FileManager.default.moveItem(at: file.url, to: descURL)
+                
+                // Update state
+                if let index = files.firstIndex(where: { $0.id == file.id }) {
+                    files[index].decision = .cloud
+                }
+                
+                recordAction(.cloud, file: file, decision: .cloud)
+            } catch {
+                print("Failed to move \(file.name) to cloud: \(error)")
+            }
+        }
+        
+        // If current file was in the group, move next
+        if let current = currentFile, filesToMove.contains(where: { $0.id == current.id }) {
+            moveToNext()
+        }
+    }
+    
+    func updateCloudSettings() {
+        if let path = UserDefaults.standard.string(forKey: "cloudPath"), !path.isEmpty {
+            cloudDestinationURL = URL(fileURLWithPath: path)
+        } else {
+            cloudDestinationURL = nil
+        }
+    }
+    
+    // MARK: - History
+    
+    // MARK: - History
+    
+    struct Action: Equatable, Identifiable {
+        let id = UUID()
+        enum ActionType: String, Equatable {
+            case keep
+            case bin
+            case stack
+            case cloud
+        }
+        
+        let type: ActionType
+        let file: DesktopFile
+        let previousIndex: Int
+        let fileOriginalIndex: Int?
+        let decision: FileDecision?
+    }
+    
+    @Published var actionHistory: [Action] = []
+    private let maxHistorySize = 50
+    
+    private func recordAction(_ type: Action.ActionType, file: DesktopFile, originalIndex: Int? = nil, decision: FileDecision? = nil) {
         let action = Action(
             type: type,
             file: file,
             previousIndex: currentFileIndex,
-            fileOriginalIndex: originalIndex
+            fileOriginalIndex: originalIndex,
+            decision: decision
         )
         actionHistory.append(action)
         
@@ -282,60 +419,116 @@ class DeclutterViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Undo / Redo
+    
     func undoLastAction() -> Bool {
         guard let lastAction = actionHistory.popLast() else {
             return false
         }
         
-        // Re-insert the file back into the files array
-        if let originalIndex = lastAction.fileOriginalIndex, originalIndex <= files.count {
-            // Insert at original position if possible
-            files.insert(lastAction.file, at: min(originalIndex, files.count))
-        } else {
-            // If we don't have original index, insert at the previous position
-            let insertIndex = min(lastAction.previousIndex, files.count)
-            files.insert(lastAction.file, at: insertIndex)
+        // Revert decision in files array
+        if let index = files.firstIndex(where: { $0.id == lastAction.file.id }) {
+            files[index].decision = nil
         }
         
-        // Undo the action and restore counters
+        // Restore counters
         switch lastAction.type {
         case .keep:
             keptCount = max(0, keptCount - 1)
-            
         case .bin:
             binnedCount = max(0, binnedCount - 1)
             reclaimedSpace = max(0, reclaimedSpace - lastAction.file.fileSize)
-            
-            // Remove from binned files if it was collected for review
             if !immediateBinning {
                 binnedFiles.removeAll { $0.id == lastAction.file.id }
             }
-            // Note: If immediate binning was used, file is already in trash
-            // We can't restore it from trash, but we've added it back to the list
-            // User would need to manually restore from trash if they want the actual file
-            
         case .stack:
             stackedFiles.removeAll { $0.id == lastAction.file.id }
+        case .cloud:
+            // Move file back from cloud location to original?
+            // For now, just restore it in the UI list.
+            // Actual file move-back logic would be needed for true undo.
+            if let cloudPath = cloudDestinationURL {
+                let movedURL = cloudPath.appendingPathComponent(lastAction.file.name)
+                // We should probably try to move it back if it exists there
+                try? FileManager.default.moveItem(at: movedURL, to: lastAction.file.url)
+            }
         }
         
-        // Restore file index to point to the file we were looking at
-        // Find the file in the filtered list
-        let filtered = filteredFiles
-        if let newIndex = filtered.firstIndex(where: { $0.id == lastAction.file.id }) {
+        // Restore index to the file we just undid
+        if let newIndex = filteredFiles.firstIndex(where: { $0.id == lastAction.file.id }) {
             withAnimation {
                 currentFileIndex = newIndex
             }
-        } else {
-            // If file doesn't match current filter, restore to previous index
-            withAnimation {
-                currentFileIndex = min(lastAction.previousIndex, filtered.count)
-            }
         }
         
-        // Regenerate thumbnails for current position
         generateThumbnails(for: currentFileIndex)
-        
         return true
+    }
+    
+    func resetSession() {
+        // Undo all actions in reverse order
+        while !actionHistory.isEmpty {
+            _ = undoLastAction()
+        }
+    }
+    
+    func undoDecision(for file: DesktopFile) {
+        // Clear decision
+        if let index = files.firstIndex(where: { $0.id == file.id }) {
+            files[index].decision = nil
+        }
+        
+        // Revert stats
+        if let lastAction = actionHistory.last(where: { $0.file.id == file.id }) {
+            switch lastAction.type {
+            case .keep: keptCount = max(0, keptCount - 1)
+            case .bin:
+                binnedCount = max(0, binnedCount - 1)
+                reclaimedSpace = max(0, reclaimedSpace - file.fileSize)
+                if !immediateBinning { binnedFiles.removeAll { $0.id == file.id } }
+            case .stack: stackedFiles.removeAll { $0.id == file.id }
+            case .cloud:
+                // Try to move back from cloud
+                if let cloudPath = cloudDestinationURL {
+                    let movedURL = cloudPath.appendingPathComponent(file.name)
+                    try? FileManager.default.moveItem(at: movedURL, to: file.url)
+                }
+            }
+            
+            // Remove from history
+            if let historyIndex = actionHistory.lastIndex(where: { $0.file.id == file.id }) {
+                actionHistory.remove(at: historyIndex)
+            }
+        }
+    }
+    
+    func canRedo() -> Bool {
+        // Simple forward navigation for now, or true redo if we tracked redo stack.
+        // User asked for "Forward button which does the opposite of redo/undo".
+        // This implies navigating forward if we navigated back?
+        // Or re-applying a stripped decision?
+        // For simplicity, let's treat it as "Next File" for navigation,
+        // or if we want full Redo, we need a redoStack.
+        // Given the prompt "forward button which does the opposite", let's assume Navigation Forward.
+        currentFileIndex < filteredFiles.count - 1
+    }
+    
+    func goForward() {
+        if currentFileIndex < filteredFiles.count - 1 {
+            withAnimation {
+                currentFileIndex += 1
+            }
+            generateThumbnails(for: currentFileIndex)
+        }
+    }
+    
+    func goBack() {
+        if currentFileIndex > 0 {
+            withAnimation {
+                currentFileIndex -= 1
+            }
+            generateThumbnails(for: currentFileIndex)
+        }
     }
     
     var canUndo: Bool {
@@ -363,15 +556,72 @@ class DeclutterViewModel: ObservableObject {
         withAnimation {
             // Don't increment if we're already at the end
             if currentFileIndex < filteredFiles.count {
-            currentFileIndex += 1
-            }
-            // If we've gone past the end, clamp to the end
-            if currentFileIndex >= filteredFiles.count {
-                currentFileIndex = filteredFiles.count
+                currentFileIndex += 1
             }
         }
         // Preload more as we move
         generateThumbnails(for: currentFileIndex)
+        
+        if isFinished && !folderStack.isEmpty {
+            returnToParentFolder()
+        }
+    }
+    
+    var isInSubfolder: Bool {
+        !folderStack.isEmpty
+    }
+    
+    var parentFolderName: String {
+        folderStack.last?.url.lastPathComponent ?? "Back"
+    }
+
+    func skipFolder(_ file: DesktopFile) {
+        print("Folder decision: skip \(file.url.path)")
+        files.removeAll { $0.id == file.id }
+        moveToNext()
+    }
+
+    func enterFolder(_ file: DesktopFile) {
+        guard file.fileType == .folder else { return }
+        print("Folder decision: dive into \(file.url.path)")
+        let context = FolderContext(
+            url: selectedFolderURL ?? file.url,
+            files: files,
+            currentFileIndex: currentFileIndex,
+            selectedFileTypeFilter: selectedFileTypeFilter,
+            totalFilesCount: totalFilesCount,
+            suggestionCache: suggestionCache,
+            lastSuggestionFileId: lastSuggestionFileId,
+            currentFileSuggestions: currentFileSuggestions,
+            thumbnailGenerationInProgress: thumbnailGenerationInProgress
+        )
+        folderStack.append(context)
+        
+        selectedFolderURL = file.url
+        FileScanner.shared.useCustomURL(file.url)
+        loadFiles()
+        loadFiles()
+    }
+
+    func returnToParentFolder() {
+        guard let context = folderStack.popLast() else { return }
+        selectedFolderURL = context.url
+        FileScanner.shared.useCustomURL(context.url)
+        files = context.files
+        currentFileIndex = min(context.currentFileIndex, files.count)
+        selectedFileTypeFilter = context.selectedFileTypeFilter
+        totalFilesCount = context.totalFilesCount
+        suggestionCache = context.suggestionCache
+        lastSuggestionFileId = context.lastSuggestionFileId
+        currentFileSuggestions = context.currentFileSuggestions
+        thumbnailGenerationInProgress = context.thumbnailGenerationInProgress
+        updateBreadcrumbs()
+        generateThumbnails(for: currentFileIndex)
+    }
+
+    private func updateBreadcrumbs() {
+        let crumbs = folderStack.map { $0.url.lastPathComponent } + [selectedFolderURL?.lastPathComponent ?? "Folder"]
+        breadcrumbText = crumbs.joined(separator: " > ")
     }
     
     func emptyBin() {
@@ -430,6 +680,33 @@ class DeclutterViewModel: ObservableObject {
         formatter.allowedUnits = [.useMB, .useGB, .useKB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: reclaimedSpace)
+    }
+    
+    func triggerShake(for fileId: UUID) {
+        // Cancel previous task
+        shakeTask?.cancel()
+        
+        // Set ID to trigger shake
+        withAnimation {
+            shakingFileId = fileId
+        }
+        
+        // Auto-stop after 3 seconds
+        shakeTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+            if !Task.isCancelled && shakingFileId == fileId {
+                withAnimation {
+                    shakingFileId = nil
+                }
+            }
+        }
+    }
+    
+    func stopShake() {
+        shakeTask?.cancel()
+        withAnimation {
+            shakingFileId = nil
+        }
     }
     
     // MARK: - Group Review
@@ -547,8 +824,19 @@ class DeclutterViewModel: ObservableObject {
                 description: "Keep 1 file, delete \(count - 1)",
                 icon: "clock.fill",
                 action: {
-                    let toKeep = [sorted.first!]
-                    let toBin = Array(sorted.dropFirst())
+                    // Re-verify files existence
+                    let currentFiles = self.groupReviewFiles.filter { f in sorted.contains(where: { $0.id == f.id }) }
+                    let currentSorted = currentFiles.sorted { file1, file2 in
+                         let date1 = (try? FileManager.default.attributesOfItem(atPath: file1.url.path)[.creationDate] as? Date) ?? Date.distantPast
+                         let date2 = (try? FileManager.default.attributesOfItem(atPath: file2.url.path)[.creationDate] as? Date) ?? Date.distantPast
+                         return date1 > date2
+                     }
+                    
+                    guard let newest = currentSorted.first else { return }
+                    
+                    let toKeep = [newest]
+                    let toBin = Array(currentSorted.dropFirst())
+                    
                     self.keepGroupFiles(toKeep)
                     self.binGroupFiles(toBin)
                 }
@@ -622,38 +910,49 @@ class DeclutterViewModel: ObservableObject {
         return actions
     }
     
-    func binGroupFiles(_ filesToBin: [DesktopFile]) {
-        guard !filesToBin.isEmpty else { return }
-        
+    func binStackedFiles(_ filesToBin: [DesktopFile]) {
         for file in filesToBin {
-            if files.contains(where: { $0.id == file.id }) {
-                // Remove from files and bin
-                files.removeAll { $0.id == file.id }
-                
-                if immediateBinning {
-                    do {
-                        try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
-                        binnedCount += 1
-                        reclaimedSpace += file.fileSize
-                    } catch {
-                        binnedCount += 1
-                        reclaimedSpace += file.fileSize
-                    }
-                } else {
-                    binnedFiles.append(file)
-                    binnedCount += 1
-                    reclaimedSpace += file.fileSize
-                }
+            // Remove from stack
+            stackedFiles.removeAll { $0.id == file.id }
+            
+            // Trash
+            do {
+                try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+                binnedCount += 1
+                reclaimedSpace += filesToBin.reduce(0) { $0 + $1.fileSize }
+                print("Stacked file moved to trash: \(file.name)")
+            } catch {
+                print("Failed to trash stacked file \(file.name): \(error)")
             }
         }
+    }
+    
+    func keepStackedFiles(_ filesToKeep: [DesktopFile]) {
+        for file in filesToKeep {
+            // Remove from stack
+            stackedFiles.removeAll { $0.id == file.id }
+            if let index = files.firstIndex(where: { $0.id == file.id }) {
+                files[index].decision = .kept
+                keptCount += 1
+            }
+        }
+    }
+    
+    func keepGroupFiles(_ filesToKeep: [DesktopFile]) {
+        guard !filesToKeep.isEmpty else { return }
         
-        // Clear suggestion cache for removed files
-        for file in filesToBin {
+        for file in filesToKeep {
+            // Find in main array and mark as kept
+            if let index = files.firstIndex(where: { $0.id == file.id }) {
+                files[index].decision = .kept
+                keptCount += 1
+                recordAction(.keep, file: file, decision: .kept)
+            }
             suggestionCache.removeValue(forKey: file.id)
         }
         
-        // Remove binned files from group review
-        groupReviewFiles.removeAll { file in filesToBin.contains { $0.id == file.id } }
+        // Remove kept files from group review
+        groupReviewFiles.removeAll { file in filesToKeep.contains { $0.id == file.id } }
         
         // If all files processed, exit group review
         if groupReviewFiles.isEmpty {
@@ -662,17 +961,33 @@ class DeclutterViewModel: ObservableObject {
         }
     }
     
-    func keepGroupFiles(_ filesToKeep: [DesktopFile]) {
-        guard !filesToKeep.isEmpty else { return }
+    func binGroupFiles(_ filesToBin: [DesktopFile]) {
+        guard !filesToBin.isEmpty else { return }
         
-        for file in filesToKeep {
-            files.removeAll { $0.id == file.id }
-            keptCount += 1
+        for file in filesToBin {
+            // Find in main array and mark as binned
+            if let index = files.firstIndex(where: { $0.id == file.id }) {
+                files[index].decision = .binned
+                binnedCount += 1
+                reclaimedSpace += file.fileSize
+                
+                if immediateBinning {
+                    do {
+                        try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+                    } catch {
+                        print("Failed to trash from group: \(error)")
+                    }
+                } else {
+                    binnedFiles.append(file)
+                }
+                
+                recordAction(.bin, file: file, decision: .binned)
+            }
             suggestionCache.removeValue(forKey: file.id)
         }
         
-        // Remove kept files from group review
-        groupReviewFiles.removeAll { file in filesToKeep.contains { $0.id == file.id } }
+        // Remove binned files from group review
+        groupReviewFiles.removeAll { file in filesToBin.contains { $0.id == file.id } }
         
         // If all files processed, exit group review
         if groupReviewFiles.isEmpty {

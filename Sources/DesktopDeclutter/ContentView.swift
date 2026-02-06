@@ -5,443 +5,362 @@ struct ContentView: View {
     @StateObject private var viewModel = DeclutterViewModel()
     
     @State private var showSettings = false
+    @State private var showHistory = false
     @State private var showStackedFiles = false
     @State private var showBinnedFiles = false
     @State private var showFilters = false
+    @State private var window: NSWindow?
+
+
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Unified Toolbar with Material Effect
-            HStack(spacing: 12) {
-                // Undo button (only visible when undo is available)
-                if viewModel.canUndo {
+        Group {
+            if viewModel.selectedFolderURL == nil {
+                VStack(spacing: 16) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 44, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Choose a folder to begin")
+                        .font(.system(size: 18, weight: .semibold))
+                    
+                    Text("Desktop Declutter needs a folder to scan. Please select one to continue.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 260)
+                    
                     Button(action: {
-                        _ = viewModel.undoLastAction()
+                        viewModel.promptForFolderAndLoad()
                     }) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
+                        Text("Choose Folder")
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
                             .background {
-                                Circle()
-                                    .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
+                                Capsule().fill(Color.blue.opacity(0.15))
                             }
                     }
                     .buttonStyle(.plain)
-                    .help("Undo last action (⌘Z)")
                 }
-                
-                // Settings button
-                Button(action: {
-                    showSettings.toggle()
-                }) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background {
-                            Circle()
-                                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
-                        }
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showSettings, arrowEdge: .top) {
-                    SettingsView(viewModel: viewModel)
-                        .frame(width: 220)
-                        .padding(16)
-                }
-                
-                Spacer()
-                
-                // Progress Bar (Center)
-                VStack(spacing: 4) {
-                    ProgressView(value: Double(viewModel.currentFileIndex), total: Double(max(viewModel.filteredFiles.count, 1)))
-                        .progressViewStyle(.linear)
-                        .frame(width: 180)
-                    
-                    HStack(spacing: 4) {
-                        Text("\(viewModel.currentFileIndex)")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("of")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(.secondary)
-                        Text("\(viewModel.filteredFiles.count)")
-                            .font(.system(size: 11, weight: .semibold))
-                        if viewModel.selectedFileTypeFilter != nil {
-                            Text("(\(viewModel.totalFilesCount) total)")
-                                .font(.system(size: 9, weight: .regular))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .foregroundColor(.primary)
-                }
-                
-                Spacer()
-                
-                // Filter button
-                Button(action: {
-                    showFilters.toggle()
-                }) {
-                    Image(systemName: viewModel.selectedFileTypeFilter != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(viewModel.selectedFileTypeFilter != nil ? .blue : .secondary)
-                        .frame(width: 28, height: 28)
-                        .background {
-                            Circle()
-                                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
-                        }
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showFilters, arrowEdge: .top) {
-                    FilterView(viewModel: viewModel)
-                        .frame(width: 200)
-                        .padding(12)
-                }
-                
-                // Binned files button (only show if immediate binning is OFF and there are binned files)
-                if !viewModel.immediateBinning && viewModel.binnedFiles.count > 0 {
-                    Button(action: {
-                        showBinnedFiles.toggle()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "trash.fill")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("\(viewModel.binnedFiles.count)")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundColor(.red)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background {
-                            Capsule()
-                                .fill(Color.red.opacity(0.15))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $showBinnedFiles, arrowEdge: .top) {
-                        BinnedFilesView(viewModel: viewModel)
-                            .frame(width: 350, height: 500)
-                    }
-                }
-                
-                // Stacked files button
-                if viewModel.stackedFiles.count > 0 {
-                    Button(action: {
-                        showStackedFiles.toggle()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "square.stack.fill")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("\(viewModel.stackedFiles.count)")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background {
-                            Capsule()
-                                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $showStackedFiles, arrowEdge: .top) {
-                        StackedFilesView(viewModel: viewModel)
-                            .frame(width: 350, height: 500)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background {
-                // Material blur effect (unified toolbar)
-                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-            }
-            
-            Divider()
-                .opacity(0.2)
-            
-            ZStack {
-                // Material background for main content
-                VisualEffectView(material: .contentBackground, blendingMode: .behindWindow)
-                
-                if let error = viewModel.errorMessage {
-                     VStack(spacing: 20) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-                        Text("Access Issue")
-                            .font(.headline)
-                        Text(error)
-                            .multilineTextAlignment(.center)
-                            .font(.callout)
-                        
-                        Button("Open System Settings") {
-                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                        
-                        Button("Retry") {
-                            viewModel.loadFiles()
-                        }
-                    }
-                    .padding()
-                } else if viewModel.showGroupReview {
-                    // Group Review Mode
-                    GroupReviewView(viewModel: viewModel)
-                } else if !viewModel.isFinished {
-                    ZStack {
-                    VStack {
-                        Spacer()
-                        
-                        if let file = viewModel.currentFile {
-                            CardView(
-                                file: file,
-                                suggestions: viewModel.currentFileSuggestions,
-                                onKeep: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    viewModel.keepCurrentFile()
-                                    }
-                                },
-                                onBin: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    viewModel.binCurrentFile()
-                                    }
-                                },
-                                onPreview: {
-                                    QuickLookHelper.shared.preview(url: file.url)
-                                },
-                                onSuggestionTap: { suggestion in
-                                    viewModel.startGroupReview(for: suggestion)
-                                }
-                            )
-                            .id(file.id)
-                                .transition(.asymmetric(
-                                    insertion: .scale(scale: 0.9).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
-                                ))
-                            }
-                            
-                            Spacer()
-                        }
-                        
-                        // Floating Action Buttons (overlaying bottom corners)
-                        if viewModel.currentFile != nil {
-                            HStack {
-                                // Bin button (left)
-                                FloatingActionButton(
-                                    icon: "xmark.circle.fill",
-                                    shortcut: "←",
-                                    color: Color(red: 1.0, green: 0.27, blue: 0.23), // System red
-                                    action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                            viewModel.binCurrentFile()
-                                        }
-                                    }
-                                )
-                        
-                        Spacer()
-                        
-                                // Stack button (center)
-                                FloatingActionButton(
-                                    icon: "square.stack.fill",
-                                    shortcut: "S",
-                                    color: Color(red: 0.0, green: 0.48, blue: 1.0), // System blue
-                                    action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                            viewModel.stackCurrentFile()
-                                        }
-                                    }
-                                )
-                                
-                                Spacer()
-                                
-                                // Keep button (right)
-                                FloatingActionButton(
-                                    icon: "checkmark.circle.fill",
-                                    shortcut: "→",
-                                    color: Color(red: 0.20, green: 0.82, blue: 0.35), // System green
-                                    action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                            viewModel.keepCurrentFile()
-                                        }
-                                    }
-                                )
-                            }
-                            .padding(.horizontal, 32)
-                            .padding(.bottom, 32)
-                        }
-                    }
-                } else {
-                    // Summary / Review State
-                    ScrollView {
-                        VStack(spacing: 24) {
-                        if viewModel.binnedFiles.isEmpty {
-                                VStack(spacing: 16) {
-                            Image(systemName: "sparkles")
-                                        .font(.system(size: 64, weight: .light))
-                                        .foregroundStyle(
-                                            LinearGradient(
-                                                colors: [.yellow, .orange],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                    
-                                    VStack(spacing: 8) {
-                            Text("All Clean!")
-                                            .font(.system(size: 24, weight: .semibold))
-                            Text("No files to bin.")
-                                            .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                                    }
-                                }
-                                .padding(.top, 40)
-                        } else {
-                                VStack(spacing: 20) {
-                                    // Header
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "trash.fill")
-                                            .font(.system(size: 48, weight: .medium))
-                                .foregroundColor(.red)
-                                        
-                            Text("Review Bin")
-                                            .font(.system(size: 22, weight: .semibold))
-                            
-                                        HStack(spacing: 6) {
-                                Text("Total Size:")
-                                                .font(.system(size: 13))
-                                                .foregroundColor(.secondary)
-                                Text(viewModel.formattedReclaimedSpace)
-                                                .font(.system(size: 15, weight: .semibold))
-                                                .foregroundColor(.primary)
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background {
-                                            Capsule()
-                                                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
-                                        }
-                                    }
-                                    
-                                    // File list
-                                    VStack(spacing: 8) {
-                                        ForEach(viewModel.binnedFiles) { file in
-                                            HStack(spacing: 12) {
-                                                // Thumbnail
-                                                Group {
-                                    if let thumb = file.thumbnail {
-                                        Image(nsImage: thumb)
-                                            .resizable()
-                                    } else {
-                                        Image(nsImage: file.icon)
-                                            .resizable()
-                                                    }
-                                                }
-                                                .frame(width: 36, height: 36)
-                                                .cornerRadius(6)
-                                                .overlay {
-                                                    RoundedRectangle(cornerRadius: 6)
-                                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                                                }
-                                                
-                                                // File info
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(file.name)
-                                                        .font(.system(size: 13, weight: .medium))
-                                                        .lineLimit(1)
-                                                        .truncationMode(.middle)
-                                                    Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
-                                                        .font(.system(size: 11))
-                                                        .foregroundColor(.secondary)
-                                                }
-                                                
-                                                Spacer()
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 10)
-                                            .background {
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Action button
-                                    Button(action: {
-                                        viewModel.emptyBin()
-                                    }) {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "trash.fill")
-                                                .font(.system(size: 14, weight: .semibold))
-                                            Text("Move to Trash")
-                                                .font(.system(size: 14, weight: .semibold))
-                                        }
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 10)
-                                        .background {
-                                            Capsule()
-                                                .fill(Color.red)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help("Permanently delete all binned files")
-                                }
-                                .padding(.horizontal, 16)
-                            }
-                            
-                            // Rescan button
-                            Button(action: {
-                                viewModel.loadFiles()
-                            }) {
-                                Text("Rescan Desktop")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.top, 8)
-                        }
-                        .padding(.vertical, 20)
-                    }
-                }
-            }
-            // Subtle footer with stats
-            if !viewModel.isFinished {
-                HStack {
-                    HStack(spacing: 16) {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color(red: 1.0, green: 0.27, blue: 0.23))
-                                .frame(width: 6, height: 6)
-                            Text("Binned: \(viewModel.binnedCount)")
-                                .font(.system(size: 11, weight: .regular))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color(red: 0.20, green: 0.82, blue: 0.35))
-                                .frame(width: 6, height: 6)
-                            Text("Kept: \(viewModel.keptCount)")
-                                .font(.system(size: 11, weight: .regular))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
                     VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
                 }
+            } else {
+                // MAIN SPLIT VIEW LAYOUT
+                HStack(spacing: 0) {
+                    // LEFT SIDEBAR: Persistent Folder Structure
+                    FolderStructureView(viewModel: viewModel)
+                    
+                    Divider()
+                        .ignoresSafeArea()
+                    
+                    // RIGHT CONTENT AREA: Dynamic Content
+                    ZStack {
+                        // Background
+                        VisualEffectView(material: .contentBackground, blendingMode: .behindWindow)
+                            .ignoresSafeArea()
+                        
+                        VStack(spacing: 0) {
+                            // Toolbar (Top of Right Pane)
+                            HStack(spacing: 12) {
+                                // Undo
+                                if viewModel.canUndo {
+                                    Button(action: { _ = viewModel.undoLastAction() }) {
+                                        Image(systemName: "arrow.uturn.backward")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 28, height: 28)
+                                            .background { Circle().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3)) }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Undo (⌘Z)")
+                                }
+                                
+
+                                
+                                // History
+                                Button(action: { showHistory.toggle() }) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 28, height: 28)
+                                        .background { Circle().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3)) }
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showHistory, arrowEdge: .bottom) {
+                                    HistoryView(viewModel: viewModel, isPresented: $showHistory)
+                                }
+                                
+                                // Settings
+                                Button(action: { showSettings.toggle() }) {
+                                    Image(systemName: "gearshape.fill")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 28, height: 28)
+                                        .background { Circle().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3)) }
+                                }
+                                .buttonStyle(.plain)
+
+                                .sheet(isPresented: $showSettings) {
+                                    SettingsView(isPresented: $showSettings, viewModel: viewModel)
+                                }
+                                
+                                Spacer()
+                                
+                                // Progress Bar
+                                VStack(spacing: 4) {
+                                    ProgressView(value: Double(viewModel.currentFileIndex), total: Double(max(viewModel.filteredFiles.count, 1)))
+                                        .progressViewStyle(.linear)
+                                        .frame(width: 180)
+                                    HStack(spacing: 4) {
+                                        Text("\(viewModel.currentFileIndex)").font(.system(size: 11, weight: .semibold))
+                                        Text("of").font(.system(size: 11)).foregroundColor(.secondary)
+                                        Text("\(viewModel.filteredFiles.count)").font(.system(size: 11, weight: .semibold))
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                // Filter
+                                Button(action: { showFilters.toggle() }) {
+                                    Image(systemName: viewModel.selectedFileTypeFilter != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(viewModel.selectedFileTypeFilter != nil ? .blue : .secondary)
+                                        .frame(width: 28, height: 28)
+                                        .background { Circle().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3)) }
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showFilters, arrowEdge: .top) {
+                                    FilterView(viewModel: viewModel).frame(width: 200).padding(12)
+                                }
+                                
+                                // Binned Files Toggle
+                                if !viewModel.immediateBinning && !viewModel.binnedFiles.isEmpty {
+                                    Button(action: { showBinnedFiles.toggle(); showStackedFiles = false }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "trash.fill").font(.system(size: 13, weight: .medium))
+                                            Text("\(viewModel.binnedFiles.count)").font(.system(size: 11, weight: .semibold))
+                                        }
+                                        .foregroundColor(.red)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.red.opacity(0.15)))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
+                                // Stacked Files Toggle
+                                if !viewModel.stackedFiles.isEmpty {
+                                    Button(action: { showStackedFiles.toggle(); showBinnedFiles = false }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "square.stack.fill").font(.system(size: 13, weight: .medium))
+                                            Text("\(viewModel.stackedFiles.count)").font(.system(size: 11, weight: .semibold))
+                                        }
+                                        .foregroundColor(showStackedFiles ? .white : .secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule().fill(showStackedFiles ? Color.blue : Color(nsColor: .quaternaryLabelColor).opacity(0.3)))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(VisualEffectView(material: .headerView, blendingMode: .behindWindow))
+                            
+                            Divider().opacity(0.2)
+                            
+                            // MAIN CONTENT AREA
+                            ZStack {
+                                if let error = viewModel.errorMessage {
+                                    // Error View
+                                    VStack(spacing: 20) {
+                                        Image(systemName: "exclamationmark.triangle.fill").font(.largeTitle).foregroundColor(.orange)
+                                        Text(error).multilineTextAlignment(.center)
+                                        Button("Retry") { viewModel.loadFiles() }
+                                    }
+                                } else if showStackedFiles {
+                                    StackedFilesView(viewModel: viewModel)
+                                } else if showBinnedFiles {
+                                    BinnedFilesView(viewModel: viewModel)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                } else if viewModel.showGroupReview {
+                                    GroupReviewView(viewModel: viewModel)
+                                } else if !viewModel.isFinished {
+                                    if viewModel.isGridMode {
+                                        // GALLERY / GRID VIEW
+                                        GalleryGridView(viewModel: viewModel)
+                                    } else if let file = viewModel.currentFile {
+                                        if file.fileType == .folder {
+                                            FolderActionView(viewModel: viewModel, folder: file)
+                                        } else {
+                                            // Card View for File
+                                            ZStack {
+                                                CardView(
+                                                    file: file,
+                                                    suggestions: viewModel.currentFileSuggestions,
+                                                    onKeep: { withAnimation { viewModel.keepCurrentFile() } },
+                                                    onBin: { withAnimation { viewModel.binCurrentFile() } },
+                                                    onPreview: { QuickLookHelper.shared.preview(url: file.url) },
+                                                    onSuggestionTap: { viewModel.startGroupReview(for: $0) }
+                                                )
+                                                .rotationEffect(.degrees(viewModel.shakingFileId == file.id ? 2 : 0))
+                                                .animation(viewModel.shakingFileId == file.id ? .easeInOut(duration: 0.1).repeatForever(autoreverses: true) : .default, value: viewModel.shakingFileId)
+                                                .onHover { isHovered in
+                                                    if isHovered && viewModel.shakingFileId == file.id {
+                                                        viewModel.stopShake()
+                                                    }
+                                                }
+                                                .overlay {
+                                                    if let decision = file.decision {
+                                                        ZStack {
+                                                            Color.black.opacity(0.3)
+                                                                .cornerRadius(16)
+                                                            Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : "square.stack.3d.up.fill")))
+                                                                .font(.system(size: 80))
+                                                                .foregroundColor(.white)
+                                                                .shadow(radius: 10)
+                                                        }
+                                                        .allowsHitTesting(false)
+                                                    }
+                                                }
+                                                .padding(.bottom, 60) // Space for FABs
+                                                
+                                                // Floating Action Buttons
+                                                if !viewModel.showGroupReview {
+                                                    VStack {
+                                                        Spacer()
+                                                        HStack(spacing: 30) {
+                                                            // Undo Button
+                                                            Button(action: { withAnimation { _ = viewModel.undoLastAction() } }) {
+                                                                Image(systemName: "arrow.uturn.backward.circle.fill")
+                                                                    .resizable()
+                                                                    .frame(width: 50, height: 50)
+                                                                    .foregroundColor(viewModel.canUndo ? .orange : .gray.opacity(0.3))
+                                                                    .background(Circle().fill(Color.white).shadow(radius: 4))
+                                                            }
+                                                            .buttonStyle(.plain)
+                                                            .disabled(!viewModel.canUndo)
+                                                            .help("Undo (Cmd+Z)")
+                                                            
+                                                            // Bin
+                                                            FloatingActionButton(icon: "trash.fill", shortcut: "←", color: .red) {
+                                                                withAnimation { viewModel.binCurrentFile() }
+                                                            }
+                                                            .opacity(file.decision != nil ? 0.5 : 1.0)
+                                                            
+                                                            // Cloud
+                                                            if viewModel.cloudDestinationURL != nil {
+                                                                FloatingActionButton(icon: "icloud.and.arrow.up.fill", shortcut: "C", color: .blue) {
+                                                                    withAnimation { viewModel.moveToCloud(file) }
+                                                                }
+                                                                .opacity(file.decision != nil ? 0.5 : 1.0)
+                                                            }
+                                                            
+                                                            // Keep
+                                                            FloatingActionButton(icon: "checkmark.circle.fill", shortcut: "→", color: .green) {
+                                                                withAnimation { viewModel.keepCurrentFile() }
+                                                            }
+                                                            .opacity(file.decision != nil ? 0.5 : 1.0)
+                                                            
+                                                            // Forward Button
+                                                            Button(action: { withAnimation { viewModel.goForward() } }) {
+                                                                Image(systemName: "arrow.right.circle.fill")
+                                                                    .resizable()
+                                                                    .frame(width: 50, height: 50)
+                                                                    .foregroundColor(viewModel.canRedo() ? .blue : .gray.opacity(0.3))
+                                                                    .background(Circle().fill(Color.white).shadow(radius: 4))
+                                                            }
+                                                            .buttonStyle(.plain)
+                                                            .disabled(!viewModel.canRedo())
+                                                            .help("Next File")
+                                                        }
+                                                        .padding(.bottom, 30)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // All Clean / Summary View
+                                    VStack(spacing: 24) {
+                                        if viewModel.binnedFiles.isEmpty {
+                                            Image(systemName: "sparkles")
+                                                .font(.system(size: 64, weight: .light))
+                                                .foregroundStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                            Text("All Clean!").font(.title2).fontWeight(.semibold)
+                                        } else {
+                                            // Show Binned Files automatically if we have some? Or just summary.
+                                            // User usually wants to review immediately if they finished.
+                                            // Let's toggle to binned files review if there are files.
+                                            BinnedFilesView(viewModel: viewModel)
+                                        }
+                                        
+                                        if viewModel.binnedFiles.isEmpty {
+                                            HStack(spacing: 24) {
+                                                Button("Rescan Folder") { viewModel.loadFiles() }.buttonStyle(.plain).foregroundColor(.secondary)
+                                                Button(action: { viewModel.promptForFolderAndLoad() }) {
+                                                    HStack { Text("Scan Next Folder"); Image(systemName: "arrow.right") }
+                                                        .padding(.horizontal, 20).padding(.vertical, 10)
+                                                        .background(Capsule().fill(Color.blue))
+                                                        .foregroundColor(.white)
+                                                }.buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            
+                            // Footer (Stats)
+                            if !viewModel.isFinished {
+                                HStack {
+                                    HStack(spacing: 16) {
+                                        HStack(spacing: 4) {
+                                            Circle().fill(Color.red).frame(width: 6, height: 6)
+                                            Text("Binned: \(viewModel.binnedCount)").font(.caption)
+                                        }
+                                        HStack(spacing: 4) {
+                                            Circle().fill(Color.green).frame(width: 6, height: 6)
+                                            Text("Kept: \(viewModel.keptCount)").font(.caption)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 8)
+                                .background(VisualEffectView(material: .headerView, blendingMode: .behindWindow))
+                            }
+                        }
+                    }
+                    .frame(minWidth: 600, minHeight: 600)
+                }
+                .frame(minWidth: 900, minHeight: 600) // Forces larger window on update
+            } // End of Else
+        } // End of Group
+        .frame(minWidth: 420, minHeight: 680)
+        .background(WindowAccessor(window: $window))
+        .background(QuickLookResponder())
+        .onChange(of: viewModel.selectedFolderURL) { _ in
+            DispatchQueue.main.async {
+                if let window = window {
+                    let currentFrame = window.frame
+                    let newWidth = max(currentFrame.width, 1000)
+                    let newHeight = max(currentFrame.height, 700)
+                    if newWidth > currentFrame.width || newHeight > currentFrame.height {
+                        window.setFrame(NSRect(x: currentFrame.minX, y: currentFrame.minY - (newHeight - currentFrame.height), width: newWidth, height: newHeight), display: true, animate: true)
+                    }
+                }
             }
         }
-        .frame(minWidth: 420, minHeight: 680)
-        .background(QuickLookResponder())
         .onAppear {
             setupKeyboardShortcuts()
+            viewModel.promptForFolderIfNeeded()
+        }
+        .onChange(of: viewModel.currentFile?.id) { _ in
+            // Logic moved to View switching
         }
     }
     
@@ -477,6 +396,11 @@ struct ContentView: View {
             case 1: // S key
                 if !viewModel.isFinished {
                     viewModel.stackCurrentFile()
+                    return nil
+                }
+            case 36: // Return
+                if let file = viewModel.currentFile, file.fileType == .folder {
+                    viewModel.enterFolder(file)
                     return nil
                 }
             default:
@@ -521,58 +445,9 @@ class QuickLookResponderView: NSView {
 
 // MARK: - Visual Effect View (Material Blur)
 
-struct VisualEffectView: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-    
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-    
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
+// VisualEffectView moved to its own file
 
-// MARK: - Settings View
 
-struct SettingsView: View {
-    @ObservedObject var viewModel: DeclutterViewModel
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Settings")
-                .font(.system(size: 16, weight: .semibold))
-            
-            Divider()
-                .opacity(0.3)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Trash Immediately", isOn: Binding(
-                    get: { viewModel.immediateBinning },
-                    set: { newValue in
-                        viewModel.immediateBinning = newValue
-                    }
-                ))
-                .font(.system(size: 13, weight: .medium))
-                .toggleStyle(.switch)
-                .controlSize(.regular)
-                
-                Text("When enabled, files are moved to Trash immediately. When disabled, files are collected for review.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 4)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
 
 // MARK: - Floating Action Button
 
@@ -770,6 +645,8 @@ struct BinnedFilesView: View {
 
 struct StackedFilesView: View {
     @ObservedObject var viewModel: DeclutterViewModel
+    @State private var selectedFiles: Set<UUID> = []
+    @State private var hoveredFileId: UUID? = nil
     
     var body: some View {
         VStack(spacing: 0) {
@@ -778,31 +655,27 @@ struct StackedFilesView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Stacked Files")
                         .font(.system(size: 18, weight: .semibold))
-                    Text("\(viewModel.stackedFiles.count) file\(viewModel.stackedFiles.count == 1 ? "" : "s") ready for removal")
+                    Text("\(viewModel.stackedFiles.count) files waiting")
                         .font(.system(size: 12))
-                                            .foregroundColor(.secondary)
-                                    }
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 
+                // Select All / Deselect All
                 Button(action: {
-                    viewModel.emptyStack()
+                    if selectedFiles.count == viewModel.stackedFiles.count {
+                        selectedFiles.removeAll()
+                    } else {
+                        selectedFiles = Set(viewModel.stackedFiles.map { $0.id })
+                    }
                 }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "trash.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Remove All")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background {
-                        Capsule()
-                            .fill(Color.red)
-                    }
+                    Text(selectedFiles.count == viewModel.stackedFiles.count && !viewModel.stackedFiles.isEmpty ? "Deselect All" : "Select All")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
+                .disabled(viewModel.stackedFiles.isEmpty)
             }
             .padding()
             .background {
@@ -812,83 +685,78 @@ struct StackedFilesView: View {
             Divider()
                 .opacity(0.2)
             
-            // File list
+            // File grid
             ScrollView {
-                VStack(spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 16)], spacing: 16) {
                     ForEach(viewModel.stackedFiles) { file in
-                        HStack(spacing: 12) {
-                            // Thumbnail
-                            Group {
-                                if let thumb = file.thumbnail {
-                                    Image(nsImage: thumb)
-                                        .resizable()
+                        FileGridCard(
+                            file: file,
+                            isSelected: selectedFiles.contains(file.id),
+                            isHovered: hoveredFileId == file.id,
+                            isShaking: false,
+                            onToggle: {
+                                if selectedFiles.contains(file.id) {
+                                    selectedFiles.remove(file.id)
                                 } else {
-                                    Image(nsImage: file.icon)
-                                        .resizable()
+                                    selectedFiles.insert(file.id)
                                 }
+                            },
+                            onPreview: {
+                                QuickLookHelper.shared.preview(url: file.url)
+                            },
+                            onHover: { hovering in
+                                hoveredFileId = hovering ? file.id : nil
                             }
-                            .frame(width: 40, height: 40)
-                            .cornerRadius(8)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                            }
-                            
-                            // File info
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(file.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            // Actions
-                            HStack(spacing: 8) {
-                                Button(action: {
-                                    QuickLookHelper.shared.preview(url: file.url)
-                                }) {
-                                    Image(systemName: "eye.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.blue)
-                                        .frame(width: 28, height: 28)
-                                        .background {
-                                            Circle()
-                                                .fill(Color.blue.opacity(0.1))
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                                .help("Preview")
-                                
-                                Button(action: {
-                                    viewModel.removeFromStack(file)
-                                }) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.red)
-                                        .frame(width: 28, height: 28)
-                                        .background {
-                                            Circle()
-                                                .fill(Color.red.opacity(0.1))
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                                .help("Remove from stack")
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                        }
+                        )
                     }
                 }
                 .padding()
+            }
+            
+            // Footer Actions
+            if !selectedFiles.isEmpty {
+                VStack(spacing: 0) {
+                    Divider().opacity(0.2)
+                    HStack(spacing: 16) {
+                        Button(action: {
+                            let files = viewModel.stackedFiles.filter { selectedFiles.contains($0.id) }
+                            viewModel.keepStackedFiles(files)
+                            selectedFiles.removeAll()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Keep Selected (\(selectedFiles.count))")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.green))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            let files = viewModel.stackedFiles.filter { selectedFiles.contains($0.id) }
+                            viewModel.binStackedFiles(files)
+                            selectedFiles.removeAll()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "trash.fill")
+                                Text("Bin Selected (\(selectedFiles.count))")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.red))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding()
+                    .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+                }
             }
         }
     }
@@ -950,12 +818,7 @@ struct FilterView: View {
 
 // MARK: - Group Review View
 
-struct SmartAction {
-    let title: String
-    let description: String
-    let icon: String
-    let action: () -> Void
-}
+// SmartAction moved to its own file
 
 struct GroupReviewView: View {
     @ObservedObject var viewModel: DeclutterViewModel
@@ -1059,10 +922,11 @@ struct GroupReviewView: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
                     ForEach(Array(viewModel.groupReviewFiles.enumerated()), id: \.element.id) { index, file in
-                        GroupReviewFileCard(
+                        FileGridCard(
                             file: file,
                             isSelected: selectedFiles.contains(file.id),
                             isHovered: hoveredFileId == file.id,
+                            isShaking: false,
                             onToggle: {
                                 if selectedFiles.contains(file.id) {
                                     selectedFiles.remove(file.id)
@@ -1190,131 +1054,4 @@ struct SmartActionCard: View {
     }
 }
 
-struct GroupReviewFileCard: View {
-    let file: DesktopFile
-    let isSelected: Bool
-    let isHovered: Bool
-    let onToggle: () -> Void
-    let onPreview: () -> Void
-    let onHover: (Bool) -> Void
-    
-    @State private var hoveredPreview = false
-    
-    private var fileDateString: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        if let date = try? FileManager.default.attributesOfItem(atPath: file.url.path)[.creationDate] as? Date {
-            return formatter.localizedString(for: date, relativeTo: Date())
-        }
-        return "Recently"
-    }
-    
-    var body: some View {
-        VStack(spacing: 10) {
-            ZStack(alignment: .topTrailing) {
-                // Thumbnail - larger and better quality
-                Group {
-                    if let thumb = file.thumbnail {
-                        Image(nsImage: thumb)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } else {
-                        Image(nsImage: file.icon)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 80, height: 80)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(width: 160, height: 160)
-                .cornerRadius(12)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSelected ? Color.blue : (isHovered ? Color.blue.opacity(0.3) : Color.clear), lineWidth: isSelected ? 3 : 2)
-                }
-                .shadow(color: .black.opacity(isHovered ? 0.2 : 0.1), radius: isHovered ? 8 : 4)
-                .scaleEffect(hoveredPreview ? 1.05 : 1.0)
-                .animation(.easeInOut(duration: 0.2), value: hoveredPreview)
-                
-                // Selection checkbox
-                Button(action: onToggle) {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(isSelected ? .blue : .white)
-                        .background {
-                            Circle()
-                                .fill(Color.black.opacity(0.5))
-                                .frame(width: 32, height: 32)
-                        }
-                }
-                .buttonStyle(.plain)
-                .padding(6)
-                
-                // Preview overlay on hover
-                if isHovered {
-                    Button(action: onPreview) {
-                        VStack(spacing: 4) {
-                            Image(systemName: "eye.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Preview")
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .foregroundColor(.white)
-                        .padding(8)
-                        .background {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.black.opacity(0.7))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity.combined(with: .scale))
-                }
-            }
-            
-            // File info
-            VStack(spacing: 4) {
-                Text(file.name)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .frame(height: 32)
-                
-                HStack(spacing: 4) {
-                    Text(ByteCountFormatter.string(fromByteCount: file.fileSize, countStyle: .file))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    
-                    Text("•")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary.opacity(0.5))
-                    
-                    Text(fileDateString)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(width: 160)
-        .padding(10)
-        .background {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered ? 0.7 : 0.5))
-        }
-        .onHover { hovering in
-            onHover(hovering)
-            hoveredPreview = hovering
-        }
-        .onTapGesture {
-            // Single click toggles selection
-            onToggle()
-        }
-        .gesture(
-            TapGesture(count: 2)
-                .onEnded { _ in
-                    // Double-click opens preview
-                    onPreview()
-                }
-        )
-    }
-}
-
+// FileGridCard moved to its own file

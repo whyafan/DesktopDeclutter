@@ -1,0 +1,736 @@
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[2/9] Compiling DesktopDeclutter FolderStructureView.swift
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:149:9: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m1 |[0;0m import SwiftUI
+  [0;36m2 |[0;0m 
+  [0;36m3 |[0;0m struct FolderStructureView: View {
+    [0;36m|[0;0m        `- [1;39mnote: [1;39min declaration of 'FolderStructureView'[0;0m
+  [0;36m4 |[0;0m     @ObservedObject var viewModel: DeclutterViewModel
+  [0;36m5 |[0;0m     
+    [0;36m:[0;0m
+[0;36m147 |[0;0m             .padding(.bottom, 8)
+[0;36m148 |[0;0m         }
+[0;36m149 |[0;0m         .frame(width: 260)
+    [0;36m|[0;0m         `- [1;31merror: [1;39mexpected declaration[0;0m
+[0;36m150 |[0;0m         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+[0;36m151 |[0;0m         .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:161:1: [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m159 |[0;0m         }
+[0;36m160 |[0;0m     }
+[0;36m161 |[0;0m }
+    [0;36m|[0;0m `- [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m162 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:121:44: [1;31merror: [1;39mcannot find 'proxy' in scope[0;0m
+[0;36m119 |[0;0m                 .id(viewModel.selectedFolderURL) // Force refresh when folder changes
+[0;36m120 |[0;0m                 .onAppear {
+[0;36m121 |[0;0m                     scrollToCurrent(proxy: [4;39mproxy[0;0m)
+    [0;36m|[0;0m                                            `- [1;31merror: [1;39mcannot find 'proxy' in scope[0;0m
+[0;36m122 |[0;0m                 }
+[0;36m123 |[0;0m                 .onChange(of: viewModel.currentFile?.id) { _ in
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:124:44: [1;31merror: [1;39mcannot find 'proxy' in scope[0;0m
+[0;36m122 |[0;0m                 }
+[0;36m123 |[0;0m                 .onChange(of: viewModel.currentFile?.id) { _ in
+[0;36m124 |[0;0m                     scrollToCurrent(proxy: [4;39mproxy[0;0m)
+    [0;36m|[0;0m                                            `- [1;31merror: [1;39mcannot find 'proxy' in scope[0;0m
+[0;36m125 |[0;0m                 }
+[0;36m126 |[0;0m             }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m       `- [1;39mnote: [1;39min declaration of 'DeclutterViewModel'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m                                            `- [1;39mnote: [1;39mto match this opening '{'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:15:17: [1;31merror: [1;39minitializer 'init(_:)' requires that 'Binding<Subject>' conform to 'StringProtocol'[0;0m
+ [0;36m13 |[0;0m                     .textCase(.uppercase)
+ [0;36m14 |[0;0m                 
+ [0;36m15 |[0;0m                 Text(viewModel.breadcrumbText.isEmpty ? "Root" : viewModel.breadcrumbText)
+    [0;36m|[0;0m                 `- [1;31merror: [1;39minitializer 'init(_:)' requires that 'Binding<Subject>' conform to 'StringProtocol'[0;0m
+ [0;36m16 |[0;0m                     .font(.system(size: 13))
+ [0;36m17 |[0;0m                     .foregroundColor(.primary)
+
+SwiftUI.Text.init:2:8: [1;39mnote: [1;39mwhere 'S' = 'Binding<Subject>'[0;0m
+[0;36m1 |[0;0m struct Text {
+[0;36m2 |[0;0m public init<S>(_ content: S) where S : StringProtocol}
+  [0;36m|[0;0m        `- [1;39mnote: [1;39mwhere 'S' = 'Binding<Subject>'[0;0m
+[0;36m3 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:15:32: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'breadcrumbText' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m13 |[0;0m                     .textCase(.uppercase)
+ [0;36m14 |[0;0m                 
+ [0;36m15 |[0;0m                 Text([4;39mviewModel[0;0m.[4;39mbreadcrumbText[0;0m.isEmpty ? "Root" : viewModel.breadcrumbText)
+    [0;36m|[0;0m                                `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'breadcrumbText' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m16 |[0;0m                     .font(.system(size: 13))
+ [0;36m17 |[0;0m                     .foregroundColor(.primary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:15:22: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m13 |[0;0m                     .textCase(.uppercase)
+ [0;36m14 |[0;0m                 
+ [0;36m15 |[0;0m                 Text(viewModel.breadcrumbText.isEmpty ? "Root" : viewModel.breadcrumbText)
+    [0;36m|[0;0m                      `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m16 |[0;0m                     .font(.system(size: 13))
+ [0;36m17 |[0;0m                     .foregroundColor(.primary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:15:57: [1;31merror: [1;39mresult values in '? :' expression have mismatching types 'String' and 'Binding<Subject>'[0;0m
+ [0;36m13 |[0;0m                     .textCase(.uppercase)
+ [0;36m14 |[0;0m                 
+ [0;36m15 |[0;0m                 Text(viewModel.breadcrumbText.isEmpty ? [4;39m"Root"[0;0m : viewModel.breadcrumbText)
+    [0;36m|[0;0m                                                         `- [1;31merror: [1;39mresult values in '? :' expression have mismatching types 'String' and 'Binding<Subject>'[0;0m
+ [0;36m16 |[0;0m                     .font(.system(size: 13))
+ [0;36m17 |[0;0m                     .foregroundColor(.primary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:15:76: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'breadcrumbText' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m13 |[0;0m                     .textCase(.uppercase)
+ [0;36m14 |[0;0m                 
+ [0;36m15 |[0;0m                 Text(viewModel.breadcrumbText.isEmpty ? "Root" : [4;39mviewModel[0;0m.[4;39mbreadcrumbText[0;0m)
+    [0;36m|[0;0m                                                                            `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'breadcrumbText' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m16 |[0;0m                     .font(.system(size: 13))
+ [0;36m17 |[0;0m                     .foregroundColor(.primary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:15:66: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m13 |[0;0m                     .textCase(.uppercase)
+ [0;36m14 |[0;0m                 
+ [0;36m15 |[0;0m                 Text(viewModel.breadcrumbText.isEmpty ? "Root" : viewModel.breadcrumbText)
+    [0;36m|[0;0m                                                                  `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m16 |[0;0m                     .font(.system(size: 13))
+ [0;36m17 |[0;0m                     .foregroundColor(.primary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:155:28: [1;31merror: [1;39mcannot find 'viewModel' in scope[0;0m
+[0;36m153 |[0;0m     
+[0;36m154 |[0;0m     private func scrollToCurrent(proxy: ScrollViewProxy) {
+[0;36m155 |[0;0m         if let currentId = [4;39mviewModel[0;0m.currentFile?.id {
+    [0;36m|[0;0m                            `- [1;31merror: [1;39mcannot find 'viewModel' in scope[0;0m
+[0;36m156 |[0;0m             withAnimation {
+[0;36m157 |[0;0m                 proxy.scrollTo(currentId, anchor: .center)
+[3/9] Compiling DesktopDeclutter GalleryGridView.swift
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:161:1: [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m159 |[0;0m         }
+[0;36m160 |[0;0m     }
+[0;36m161 |[0;0m }
+    [0;36m|[0;0m `- [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m162 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m       `- [1;39mnote: [1;39min declaration of 'DeclutterViewModel'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m                                            `- [1;39mnote: [1;39mto match this opening '{'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/GalleryGridView.swift:15:39: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'filteredFiles' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m13 |[0;0m                     Text("Gallery View")
+ [0;36m14 |[0;0m                         .font(.system(size: 18, weight: .semibold))
+ [0;36m15 |[0;0m                     Text("\([4;39mviewModel[0;0m.[4;39mfilteredFiles[0;0m.count) items in current folder")
+    [0;36m|[0;0m                                       `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'filteredFiles' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m16 |[0;0m                         .font(.system(size: 12))
+ [0;36m17 |[0;0m                         .foregroundColor(.secondary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/GalleryGridView.swift:15:29: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m13 |[0;0m                     Text("Gallery View")
+ [0;36m14 |[0;0m                         .font(.system(size: 18, weight: .semibold))
+ [0;36m15 |[0;0m                     Text("\(viewModel.filteredFiles.count) items in current folder")
+    [0;36m|[0;0m                             `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m16 |[0;0m                         .font(.system(size: 12))
+ [0;36m17 |[0;0m                         .foregroundColor(.secondary)
+error: emit-module command failed with exit code 1 (use -v to see invocation)
+[4/9] Emitting module DesktopDeclutter
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:161:1: [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m159 |[0;0m         }
+[0;36m160 |[0;0m     }
+[0;36m161 |[0;0m }
+    [0;36m|[0;0m `- [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m162 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m       `- [1;39mnote: [1;39min declaration of 'DeclutterViewModel'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m                                            `- [1;39mnote: [1;39mto match this opening '{'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:149:9: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m1 |[0;0m import SwiftUI
+  [0;36m2 |[0;0m 
+  [0;36m3 |[0;0m struct FolderStructureView: View {
+    [0;36m|[0;0m        `- [1;39mnote: [1;39min declaration of 'FolderStructureView'[0;0m
+  [0;36m4 |[0;0m     @ObservedObject var viewModel: DeclutterViewModel
+  [0;36m5 |[0;0m     
+    [0;36m:[0;0m
+[0;36m147 |[0;0m             .padding(.bottom, 8)
+[0;36m148 |[0;0m         }
+[0;36m149 |[0;0m         .frame(width: 260)
+    [0;36m|[0;0m         `- [1;31merror: [1;39mexpected declaration[0;0m
+[0;36m150 |[0;0m         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+[0;36m151 |[0;0m         .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+[5/9] Compiling DesktopDeclutter FolderActionView.swift
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:161:1: [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m159 |[0;0m         }
+[0;36m160 |[0;0m     }
+[0;36m161 |[0;0m }
+    [0;36m|[0;0m `- [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m162 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m       `- [1;39mnote: [1;39min declaration of 'DeclutterViewModel'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m                                            `- [1;39mnote: [1;39mto match this opening '{'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderActionView.swift:72:35: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'enterFolder' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m70 |[0;0m                 Button(action: {
+ [0;36m71 |[0;0m                     withAnimation {
+ [0;36m72 |[0;0m                         [4;39mviewModel[0;0m.[4;39menterFolder[0;0m(folder)
+    [0;36m|[0;0m                                   `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'enterFolder' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m73 |[0;0m                     }
+ [0;36m74 |[0;0m                 }) {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderActionView.swift:72:25: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m70 |[0;0m                 Button(action: {
+ [0;36m71 |[0;0m                     withAnimation {
+ [0;36m72 |[0;0m                         viewModel.enterFolder(folder)
+    [0;36m|[0;0m                         `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m73 |[0;0m                     }
+ [0;36m74 |[0;0m                 }) {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderActionView.swift:72:35: [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m70 |[0;0m                 Button(action: {
+ [0;36m71 |[0;0m                     withAnimation {
+ [0;36m72 |[0;0m                         viewModel.enterFolder(folder)
+    [0;36m|[0;0m                                   `- [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m73 |[0;0m                     }
+ [0;36m74 |[0;0m                 }) {
+[6/9] Compiling DesktopDeclutter DeclutterViewModel.swift
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:335:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m333 |[0;0m     // MARK: - History
+[0;36m334 |[0;0m     
+[0;36m335 |[0;0m     private struct Action: Equatable {
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m336 |[0;0m         enum ActionType: String, Equatable {
+[0;36m337 |[0;0m             case keep
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:349:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m347 |[0;0m     }
+[0;36m348 |[0;0m     
+[0;36m349 |[0;0m     private var actionHistory: [Action] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m350 |[0;0m     private let maxHistorySize = 50
+[0;36m351 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:350:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m348 |[0;0m     
+[0;36m349 |[0;0m     private var actionHistory: [Action] = []
+[0;36m350 |[0;0m     private let maxHistorySize = 50
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m351 |[0;0m     
+[0;36m352 |[0;0m     private func recordAction(_ type: Action.ActionType, file: DesktopFile, originalIndex: Int? = nil, decision: FileDecision? = nil) {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:352:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m350 |[0;0m     private let maxHistorySize = 50
+[0;36m351 |[0;0m     
+[0;36m352 |[0;0m     private func recordAction(_ type: Action.ActionType, file: DesktopFile, originalIndex: Int? = nil, decision: FileDecision? = nil) {
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m353 |[0;0m         let action = Action(
+[0;36m354 |[0;0m             type: type,
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:455:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m453 |[0;0m     }
+[0;36m454 |[0;0m     
+[0;36m455 |[0;0m     private func moveToNext() {
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m456 |[0;0m         withAnimation {
+[0;36m457 |[0;0m             // Don't increment if we're already at the end
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:522:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m520 |[0;0m     }
+[0;36m521 |[0;0m 
+[0;36m522 |[0;0m     private func updateBreadcrumbs() {
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m523 |[0;0m         let crumbs = folderStack.map { $0.url.lastPathComponent } + [selectedFolderURL?.lastPathComponent ?? "Folder"]
+[0;36m524 |[0;0m         breadcrumbText = crumbs.joined(separator: " > ")
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:645:5: [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m643 |[0;0m     }
+[0;36m644 |[0;0m     
+[0;36m645 |[0;0m     private func generateThumbnailsForGroupReview() {
+    [0;36m|[0;0m     `- [1;31merror: [1;39mattribute 'private' can only be used in a non-local scope[0;0m
+[0;36m646 |[0;0m         for (index, file) in groupReviewFiles.enumerated() {
+[0;36m647 |[0;0m             // Skip if already generating or already has thumbnail
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:899:1: [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m                                            `- [1;39mnote: [1;39mto match this opening '{'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+    [0;36m:[0;0m
+[0;36m897 |[0;0m     }
+[0;36m898 |[0;0m }
+[0;36m899 |[0;0m 
+    [0;36m|[0;0m `- [1;31merror: [1;39mexpected '}' in class[0;0m
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:161:1: [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m159 |[0;0m         }
+[0;36m160 |[0;0m     }
+[0;36m161 |[0;0m }
+    [0;36m|[0;0m `- [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m162 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:218:13: [1;31merror: [1;39mcannot find 'updateBreadcrumbs' in scope[0;0m
+[0;36m216 |[0;0m             self.thumbnailGenerationInProgress.removeAll()
+[0;36m217 |[0;0m             self.totalFilesCount = loadedFiles.count
+[0;36m218 |[0;0m             [4;39mupdateBreadcrumbs[0;0m()
+    [0;36m|[0;0m             `- [1;31merror: [1;39mcannot find 'updateBreadcrumbs' in scope[0;0m
+[0;36m219 |[0;0m             
+[0;36m220 |[0;0m             // Trigger thumbnail generation for the first file only (lazy load others)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:228:21: [1;31merror: [1;39mcannot find 'returnToParentFolder' in scope[0;0m
+[0;36m226 |[0;0m                     promptForFolderAndLoad()
+[0;36m227 |[0;0m                 } else {
+[0;36m228 |[0;0m                     [4;39mreturnToParentFolder[0;0m()
+    [0;36m|[0;0m                     `- [1;31merror: [1;39mcannot find 'returnToParentFolder' in scope[0;0m
+[0;36m229 |[0;0m                 }
+[0;36m230 |[0;0m             }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:287:13: [1;31merror: [1;39mcannot find 'recordAction' in scope[0;0m
+[0;36m285 |[0;0m             files[index].decision = .kept
+[0;36m286 |[0;0m             keptCount += 1
+[0;36m287 |[0;0m             [4;39mrecordAction[0;0m(.keep, file: file, decision: .kept)
+    [0;36m|[0;0m             `- [1;31merror: [1;39mcannot find 'recordAction' in scope[0;0m
+[0;36m288 |[0;0m             moveToNext()
+[0;36m289 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:287:27: [1;31merror: [1;39mcannot infer contextual base in reference to member 'keep'[0;0m
+[0;36m285 |[0;0m             files[index].decision = .kept
+[0;36m286 |[0;0m             keptCount += 1
+[0;36m287 |[0;0m             recordAction([4;39m.keep[0;0m, file: file, decision: .kept)
+    [0;36m|[0;0m                           `- [1;31merror: [1;39mcannot infer contextual base in reference to member 'keep'[0;0m
+[0;36m288 |[0;0m             moveToNext()
+[0;36m289 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:287:56: [1;31merror: [1;39mcannot infer contextual base in reference to member 'kept'[0;0m
+[0;36m285 |[0;0m             files[index].decision = .kept
+[0;36m286 |[0;0m             keptCount += 1
+[0;36m287 |[0;0m             recordAction(.keep, file: file, decision: [4;39m.kept[0;0m)
+    [0;36m|[0;0m                                                        `- [1;31merror: [1;39mcannot infer contextual base in reference to member 'kept'[0;0m
+[0;36m288 |[0;0m             moveToNext()
+[0;36m289 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:288:13: [1;31merror: [1;39mcannot find 'moveToNext' in scope[0;0m
+[0;36m286 |[0;0m             keptCount += 1
+[0;36m287 |[0;0m             recordAction(.keep, file: file, decision: .kept)
+[0;36m288 |[0;0m             [4;39mmoveToNext[0;0m()
+    [0;36m|[0;0m             `- [1;31merror: [1;39mcannot find 'moveToNext' in scope[0;0m
+[0;36m289 |[0;0m         }
+[0;36m290 |[0;0m     }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:314:13: [1;31merror: [1;39mcannot find 'recordAction' in scope[0;0m
+[0;36m312 |[0;0m                 binnedFiles.append(file)
+[0;36m313 |[0;0m             }
+[0;36m314 |[0;0m             [4;39mrecordAction[0;0m(.bin, file: file, decision: .binned)
+    [0;36m|[0;0m             `- [1;31merror: [1;39mcannot find 'recordAction' in scope[0;0m
+[0;36m315 |[0;0m             moveToNext()
+[0;36m316 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:314:27: [1;31merror: [1;39mcannot infer contextual base in reference to member 'bin'[0;0m
+[0;36m312 |[0;0m                 binnedFiles.append(file)
+[0;36m313 |[0;0m             }
+[0;36m314 |[0;0m             recordAction([4;39m.bin[0;0m, file: file, decision: .binned)
+    [0;36m|[0;0m                           `- [1;31merror: [1;39mcannot infer contextual base in reference to member 'bin'[0;0m
+[0;36m315 |[0;0m             moveToNext()
+[0;36m316 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:314:55: [1;31merror: [1;39mcannot infer contextual base in reference to member 'binned'[0;0m
+[0;36m312 |[0;0m                 binnedFiles.append(file)
+[0;36m313 |[0;0m             }
+[0;36m314 |[0;0m             recordAction(.bin, file: file, decision: [4;39m.binned[0;0m)
+    [0;36m|[0;0m                                                       `- [1;31merror: [1;39mcannot infer contextual base in reference to member 'binned'[0;0m
+[0;36m315 |[0;0m             moveToNext()
+[0;36m316 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:315:13: [1;31merror: [1;39mcannot find 'moveToNext' in scope[0;0m
+[0;36m313 |[0;0m             }
+[0;36m314 |[0;0m             recordAction(.bin, file: file, decision: .binned)
+[0;36m315 |[0;0m             [4;39mmoveToNext[0;0m()
+    [0;36m|[0;0m             `- [1;31merror: [1;39mcannot find 'moveToNext' in scope[0;0m
+[0;36m316 |[0;0m         }
+[0;36m317 |[0;0m     }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:740:26: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'keepGroupFiles'[0;0m
+[0;36m738 |[0;0m                     let toBin = Array(currentSorted.dropFirst())
+[0;36m739 |[0;0m                     
+[0;36m740 |[0;0m                     [4;39mself[0;0m.[4;39mkeepGroupFiles[0;0m(toKeep)
+    [0;36m|[0;0m                          `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'keepGroupFiles'[0;0m
+[0;36m741 |[0;0m                     self.binGroupFiles(toBin)
+[0;36m742 |[0;0m                 }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:761:26: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'keepGroupFiles'[0;0m
+[0;36m759 |[0;0m                     let toKeep = Array(sorted.prefix(keepCount))
+[0;36m760 |[0;0m                     let toBin = Array(sorted.dropFirst(keepCount))
+[0;36m761 |[0;0m                     [4;39mself[0;0m.[4;39mkeepGroupFiles[0;0m(toKeep)
+    [0;36m|[0;0m                          `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'keepGroupFiles'[0;0m
+[0;36m762 |[0;0m                     self.binGroupFiles(toBin)
+[0;36m763 |[0;0m                 }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:782:30: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'binGroupFiles'[0;0m
+[0;36m780 |[0;0m                     icon: "calendar.badge.clock",
+[0;36m781 |[0;0m                     action: {
+[0;36m782 |[0;0m                         [4;39mself[0;0m.[4;39mbinGroupFiles[0;0m(oldFiles)
+    [0;36m|[0;0m                              `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'binGroupFiles'[0;0m
+[0;36m783 |[0;0m                     }
+[0;36m784 |[0;0m                 ))
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:793:26: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'keepGroupFiles'[0;0m
+[0;36m791 |[0;0m                 icon: "checkmark.circle.fill",
+[0;36m792 |[0;0m                 action: {
+[0;36m793 |[0;0m                     [4;39mself[0;0m.[4;39mkeepGroupFiles[0;0m(self.groupReviewFiles)
+    [0;36m|[0;0m                          `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'keepGroupFiles'[0;0m
+[0;36m794 |[0;0m                 }
+[0;36m795 |[0;0m             ))
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:802:26: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'binGroupFiles'[0;0m
+[0;36m800 |[0;0m                 icon: "trash.fill",
+[0;36m801 |[0;0m                 action: {
+[0;36m802 |[0;0m                     [4;39mself[0;0m.[4;39mbinGroupFiles[0;0m(self.groupReviewFiles)
+    [0;36m|[0;0m                          `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no member 'binGroupFiles'[0;0m
+[0;36m803 |[0;0m                 }
+[0;36m804 |[0;0m             ))
+[7/9] Compiling DesktopDeclutter ContentView.swift
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/FolderStructureView.swift:161:1: [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m159 |[0;0m         }
+[0;36m160 |[0;0m     }
+[0;36m161 |[0;0m }
+    [0;36m|[0;0m `- [1;31merror: [1;39mextraneous '}' at top level[0;0m
+[0;36m162 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m       `- [1;39mnote: [1;39min declaration of 'DeclutterViewModel'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected declaration[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/DeclutterViewModel.swift:6:5: [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m3 |[0;0m 
+  [0;36m4 |[0;0m @MainActor
+  [0;36m5 |[0;0m class DeclutterViewModel: ObservableObject {
+    [0;36m|[0;0m                                            `- [1;39mnote: [1;39mto match this opening '{'[0;0m
+  [0;36m6 |[0;0m     @Published var files: [DesktopFile] = []
+    [0;36m|[0;0m     `- [1;31merror: [1;39mexpected '}' in class[0;0m
+  [0;36m7 |[0;0m     @Published var currentFileIndex: Int = 0
+  [0;36m8 |[0;0m     @Published var binnedFiles: [DesktopFile] = []
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:15:25: [1;31merror: [1;39mthe compiler is unable to type-check this expression in reasonable time; try breaking up the expression into distinct sub-expressions[0;0m
+  [0;36m13 |[0;0m 
+  [0;36m14 |[0;0m     
+  [0;36m15 |[0;0m     var body: some View [4;39m{[0;0m
+     [0;36m|[0;0m                         `- [1;31merror: [1;39mthe compiler is unable to type-check this expression in reasonable time; try breaking up the expression into distinct sub-expressions[0;0m
+  [0;36m16 |[0;0m         Group {
+  [0;36m17 |[0;0m             if viewModel.selectedFolderURL == nil {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:347:34: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'canUndo' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m345 |[0;0m             if event.modifierFlags.contains(.command) {
+ [0;36m346 |[0;0m                 if event.keyCode == 6 { // Z key
+ [0;36m347 |[0;0m                     if [4;39mviewModel[0;0m.[4;39mcanUndo[0;0m {
+     [0;36m|[0;0m                                  `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'canUndo' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m348 |[0;0m                         _ = viewModel.undoLastAction()
+ [0;36m349 |[0;0m                         return nil
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:347:24: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m345 |[0;0m             if event.modifierFlags.contains(.command) {
+ [0;36m346 |[0;0m                 if event.keyCode == 6 { // Z key
+ [0;36m347 |[0;0m                     if viewModel.canUndo {
+     [0;36m|[0;0m                        `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m348 |[0;0m                         _ = viewModel.undoLastAction()
+ [0;36m349 |[0;0m                         return nil
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:347:34: [1;31merror: [1;39mcannot convert value of type 'Binding<_>' to expected condition type 'Bool'[0;0m
+ [0;36m345 |[0;0m             if event.modifierFlags.contains(.command) {
+ [0;36m346 |[0;0m                 if event.keyCode == 6 { // Z key
+ [0;36m347 |[0;0m                     if [4;39mviewModel.canUndo[0;0m {
+     [0;36m|[0;0m                                  `- [1;31merror: [1;39mcannot convert value of type 'Binding<_>' to expected condition type 'Bool'[0;0m
+ [0;36m348 |[0;0m                         _ = viewModel.undoLastAction()
+ [0;36m349 |[0;0m                         return nil
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:440:38: [1;31merror: [1;39mcannot convert value of type 'Binding<Subject>' to closure result type 'Bool'[0;0m
+ [0;36m438 |[0;0m             VStack(alignment: .leading, spacing: 8) {
+ [0;36m439 |[0;0m                 Toggle("Trash Immediately", isOn: Binding(
+ [0;36m440 |[0;0m                     get: { [4;39mviewModel.immediateBinning[0;0m },
+     [0;36m|[0;0m                                      `- [1;31merror: [1;39mcannot convert value of type 'Binding<Subject>' to closure result type 'Bool'[0;0m
+ [0;36m441 |[0;0m                     set: { newValue in
+ [0;36m442 |[0;0m                         viewModel.immediateBinning = newValue
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:440:38: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'immediateBinning' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m438 |[0;0m             VStack(alignment: .leading, spacing: 8) {
+ [0;36m439 |[0;0m                 Toggle("Trash Immediately", isOn: Binding(
+ [0;36m440 |[0;0m                     get: { [4;39mviewModel[0;0m.[4;39mimmediateBinning[0;0m },
+     [0;36m|[0;0m                                      `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'immediateBinning' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m441 |[0;0m                     set: { newValue in
+ [0;36m442 |[0;0m                         viewModel.immediateBinning = newValue
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:440:28: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m438 |[0;0m             VStack(alignment: .leading, spacing: 8) {
+ [0;36m439 |[0;0m                 Toggle("Trash Immediately", isOn: Binding(
+ [0;36m440 |[0;0m                     get: { viewModel.immediateBinning },
+     [0;36m|[0;0m                            `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m441 |[0;0m                     set: { newValue in
+ [0;36m442 |[0;0m                         viewModel.immediateBinning = newValue
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:442:35: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'immediateBinning' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m440 |[0;0m                     get: { viewModel.immediateBinning },
+ [0;36m441 |[0;0m                     set: { newValue in
+ [0;36m442 |[0;0m                         [4;39mviewModel[0;0m.[4;39mimmediateBinning[0;0m = newValue
+     [0;36m|[0;0m                                   `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'immediateBinning' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m443 |[0;0m                     }
+ [0;36m444 |[0;0m                 ))
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:442:25: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m440 |[0;0m                     get: { viewModel.immediateBinning },
+ [0;36m441 |[0;0m                     set: { newValue in
+ [0;36m442 |[0;0m                         viewModel.immediateBinning = newValue
+     [0;36m|[0;0m                         `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m443 |[0;0m                     }
+ [0;36m444 |[0;0m                 ))
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:442:54: [1;31merror: [1;39mcannot assign value of type 'Bool' to type 'Binding<Subject>'[0;0m
+ [0;36m440 |[0;0m                     get: { viewModel.immediateBinning },
+ [0;36m441 |[0;0m                     set: { newValue in
+ [0;36m442 |[0;0m                         viewModel.immediateBinning = [4;39mnewValue[0;0m
+     [0;36m|[0;0m                                                      `- [1;31merror: [1;39mcannot assign value of type 'Bool' to type 'Binding<Subject>'[0;0m
+ [0;36m443 |[0;0m                     }
+ [0;36m444 |[0;0m                 ))
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:537:39: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'binnedFiles' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m535 |[0;0m                     Text("Binned Files")
+ [0;36m536 |[0;0m                         .font(.system(size: 18, weight: .semibold))
+ [0;36m537 |[0;0m                     Text("\([4;39mviewModel[0;0m.[4;39mbinnedFiles[0;0m.count) file\(viewModel.binnedFiles.count == 1 ? "" : "s") pending review")
+     [0;36m|[0;0m                                       `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'binnedFiles' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m538 |[0;0m                         .font(.system(size: 12))
+ [0;36m539 |[0;0m                         .foregroundColor(.secondary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:537:29: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m535 |[0;0m                     Text("Binned Files")
+ [0;36m536 |[0;0m                         .font(.system(size: 18, weight: .semibold))
+ [0;36m537 |[0;0m                     Text("\(viewModel.binnedFiles.count) file\(viewModel.binnedFiles.count == 1 ? "" : "s") pending review")
+     [0;36m|[0;0m                             `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m538 |[0;0m                         .font(.system(size: 12))
+ [0;36m539 |[0;0m                         .foregroundColor(.secondary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:682:39: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'stackedFiles' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m680 |[0;0m                     Text("Stacked Files")
+ [0;36m681 |[0;0m                         .font(.system(size: 18, weight: .semibold))
+ [0;36m682 |[0;0m                     Text("\([4;39mviewModel[0;0m.[4;39mstackedFiles[0;0m.count) files waiting")
+     [0;36m|[0;0m                                       `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'stackedFiles' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m683 |[0;0m                         .font(.system(size: 12))
+ [0;36m684 |[0;0m                         .foregroundColor(.secondary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:682:29: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m680 |[0;0m                     Text("Stacked Files")
+ [0;36m681 |[0;0m                         .font(.system(size: 18, weight: .semibold))
+ [0;36m682 |[0;0m                     Text("\(viewModel.stackedFiles.count) files waiting")
+     [0;36m|[0;0m                             `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m683 |[0;0m                         .font(.system(size: 12))
+ [0;36m684 |[0;0m                         .foregroundColor(.secondary)
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:800:19: [1;31merror: [1;39mincorrect argument label in call (have 'action:_:', expected 'role:action:')[0;0m
+ [0;36m798 |[0;0m             
+ [0;36m799 |[0;0m             // All files option
+ [0;36m800 |[0;0m             Button(action: {
+     [0;36m|[0;0m                   `- [1;31merror: [1;39mincorrect argument label in call (have 'action:_:', expected 'role:action:')[0;0m
+ [0;36m801 |[0;0m                 viewModel.setFileTypeFilter(nil)
+ [0;36m802 |[0;0m             }) {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:802:16: [1;31merror: [1;39mtrailing closure passed to parameter of type 'ButtonRole' that does not accept a closure[0;0m
+ [0;36m800 |[0;0m             Button(action: {
+ [0;36m801 |[0;0m                 viewModel.setFileTypeFilter(nil)
+ [0;36m802 |[0;0m             }) [4;39m{[0;0m
+     [0;36m|[0;0m                `- [1;31merror: [1;39mtrailing closure passed to parameter of type 'ButtonRole' that does not accept a closure[0;0m
+ [0;36m803 |[0;0m                 HStack {
+ [0;36m804 |[0;0m                     Image(systemName: viewModel.selectedFileTypeFilter == nil ? "checkmark.circle.fill" : "circle")
+
+SwiftUI.Button.init:2:24: [1;39mnote: [1;39m'init(role:action:)' declared here[0;0m
+[0;36m1 |[0;0m generic struct Button {
+[0;36m2 |[0;0m @preconcurrency public init(role: ButtonRole, action: @escaping @MainActor () -> Void)}
+  [0;36m|[0;0m                        `- [1;39mnote: [1;39m'init(role:action:)' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:801:27: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'setFileTypeFilter' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m799 |[0;0m             // All files option
+ [0;36m800 |[0;0m             Button(action: {
+ [0;36m801 |[0;0m                 [4;39mviewModel[0;0m.[4;39msetFileTypeFilter[0;0m(nil)
+     [0;36m|[0;0m                           `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'setFileTypeFilter' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m802 |[0;0m             }) {
+ [0;36m803 |[0;0m                 HStack {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:801:17: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m799 |[0;0m             // All files option
+ [0;36m800 |[0;0m             Button(action: {
+ [0;36m801 |[0;0m                 viewModel.setFileTypeFilter(nil)
+     [0;36m|[0;0m                 `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m802 |[0;0m             }) {
+ [0;36m803 |[0;0m                 HStack {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:801:27: [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m799 |[0;0m             // All files option
+ [0;36m800 |[0;0m             Button(action: {
+ [0;36m801 |[0;0m                 viewModel.setFileTypeFilter(nil)
+     [0;36m|[0;0m                           `- [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m802 |[0;0m             }) {
+ [0;36m803 |[0;0m                 HStack {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:801:45: [1;31merror: [1;39m'nil' requires a contextual type[0;0m
+ [0;36m799 |[0;0m             // All files option
+ [0;36m800 |[0;0m             Button(action: {
+ [0;36m801 |[0;0m                 viewModel.setFileTypeFilter(nil)
+     [0;36m|[0;0m                                             `- [1;31merror: [1;39m'nil' requires a contextual type[0;0m
+ [0;36m802 |[0;0m             }) {
+ [0;36m803 |[0;0m                 HStack {
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:853:19: [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m851 |[0;0m     
+ [0;36m852 |[0;0m     private var groupStats: (totalSize: Int64, dateRange: String?) {
+ [0;36m853 |[0;0m         viewModel.getGroupStats()
+     [0;36m|[0;0m                   `- [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m854 |[0;0m     }
+ [0;36m855 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:853:19: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'getGroupStats' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m851 |[0;0m     
+ [0;36m852 |[0;0m     private var groupStats: (totalSize: Int64, dateRange: String?) {
+ [0;36m853 |[0;0m         [4;39mviewModel[0;0m.[4;39mgetGroupStats[0;0m()
+     [0;36m|[0;0m                   `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'getGroupStats' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m854 |[0;0m     }
+ [0;36m855 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:853:9: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m851 |[0;0m     
+ [0;36m852 |[0;0m     private var groupStats: (totalSize: Int64, dateRange: String?) {
+ [0;36m853 |[0;0m         viewModel.getGroupStats()
+     [0;36m|[0;0m         `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m854 |[0;0m     }
+ [0;36m855 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:857:19: [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m855 |[0;0m     
+ [0;36m856 |[0;0m     private var smartActions: [SmartAction] {
+ [0;36m857 |[0;0m         viewModel.getSmartActions()
+     [0;36m|[0;0m                   `- [1;31merror: [1;39mcannot call value of non-function type 'Binding<Subject>'[0;0m
+ [0;36m858 |[0;0m     }
+ [0;36m859 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:857:19: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'getSmartActions' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m855 |[0;0m     
+ [0;36m856 |[0;0m     private var smartActions: [SmartAction] {
+ [0;36m857 |[0;0m         [4;39mviewModel[0;0m.[4;39mgetSmartActions[0;0m()
+     [0;36m|[0;0m                   `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'getSmartActions' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m858 |[0;0m     }
+ [0;36m859 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:857:9: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m855 |[0;0m     
+ [0;36m856 |[0;0m     private var smartActions: [SmartAction] {
+ [0;36m857 |[0;0m         viewModel.getSmartActions()
+     [0;36m|[0;0m         `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m858 |[0;0m     }
+ [0;36m859 |[0;0m     
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:861:42: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'groupReviewSuggestion' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m859 |[0;0m     
+ [0;36m860 |[0;0m     private var groupTitle: String {
+ [0;36m861 |[0;0m         guard let suggestion = [4;39mviewModel[0;0m.[4;39mgroupReviewSuggestion[0;0m else {
+     [0;36m|[0;0m                                          `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'groupReviewSuggestion' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m862 |[0;0m             return "Review Group"
+ [0;36m863 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:861:32: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m859 |[0;0m     
+ [0;36m860 |[0;0m     private var groupTitle: String {
+ [0;36m861 |[0;0m         guard let suggestion = viewModel.groupReviewSuggestion else {
+     [0;36m|[0;0m                                `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m862 |[0;0m             return "Review Group"
+ [0;36m863 |[0;0m         }
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:883:35: [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'showGroupReview' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m881 |[0;0m                 HStack {
+ [0;36m882 |[0;0m                     Button(action: {
+ [0;36m883 |[0;0m                         [4;39mviewModel[0;0m.[4;39mshowGroupReview[0;0m = false
+     [0;36m|[0;0m                                   `- [1;31merror: [1;39mvalue of type 'DeclutterViewModel' has no dynamic member 'showGroupReview' using key path from root type 'DeclutterViewModel'[0;0m
+ [0;36m884 |[0;0m                         viewModel.groupReviewFiles = []
+ [0;36m885 |[0;0m                         viewModel.groupReviewSuggestion = nil
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:883:25: [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m881 |[0;0m                 HStack {
+ [0;36m882 |[0;0m                     Button(action: {
+ [0;36m883 |[0;0m                         viewModel.showGroupReview = false
+     [0;36m|[0;0m                         `- [1;31merror: [1;39mreferencing subscript 'subscript(dynamicMember:)' requires wrapper 'ObservedObject<DeclutterViewModel>.Wrapper'[0;0m
+ [0;36m884 |[0;0m                         viewModel.groupReviewFiles = []
+ [0;36m885 |[0;0m                         viewModel.groupReviewSuggestion = nil
+
+/Users/afankhan/DesktopDeclutter/Sources/DesktopDeclutter/ContentView.swift:883:53: [1;31merror: [1;39mcannot assign value of type 'Bool' to type 'Binding<Subject>'[0;0m
+ [0;36m881 |[0;0m                 HStack {
+ [0;36m882 |[0;0m                     Button(action: {
+ [0;36m883 |[0;0m                         viewModel.showGroupReview = [4;39mfalse[0;0m
+     [0;36m|[0;0m                                                     `- [1;31merror: [1;39mcannot assign value of type 'Bool' to type 'Binding<Subject>'[0;0m
+ [0;36m884 |[0;0m                         viewModel.groupReviewFiles = []
+ [0;36m885 |[0;0m                         viewModel.groupReviewSuggestion = nil

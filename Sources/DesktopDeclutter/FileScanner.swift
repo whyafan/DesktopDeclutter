@@ -1,152 +1,79 @@
-import Foundation
-import Combine
 import AppKit
+import Foundation
+import QuickLookThumbnailing
 
-class DeclutterViewModel: ObservableObject {
-    @Published var files: [DesktopFile] = []
-    @Published var errorMessage: String?
-    @Published var currentFileIndex: Int?
-    @Published var selectedFolderURL: URL?
+class FileScanner {
+    static let shared = FileScanner()
 
-    /// True while an Accept/Dump action is being applied, to prevent double-processing.
-    @Published var isPerformingFileAction: Bool = false
+    private var folderURL: URL
+    private let fileManager = FileManager.default
 
-    /// True while the folder picker is being presented.
-    private var isPresentingFolderPicker: Bool = false
-
-    /// ISO-8601 timestamp formatter for terminal logs.
-    private let logFormatter = ISO8601DateFormatter()
-
-    /// Log helper (prints to terminal when running via `swift run` / Xcode).
-    private func log(_ message: String) {
-        let ts = logFormatter.string(from: Date())
-        print("[DesktopDeclutter \(ts)] \(message)")
+    private init() {
+        if let desktopURL = fileManager.urls(for: .desktopDirectory, in: .userDomainMask).first {
+            self.folderURL = desktopURL
+        } else {
+            self.folderURL = fileManager.homeDirectoryForCurrentUser
+        }
     }
 
-    /// Prompt the user to choose a folder to scan.
-    ///
-    /// Uses `NSOpenPanel.begin` (non-blocking) so it works reliably at app launch.
-    @MainActor
-    func promptForFolderAndLoad() {
-        guard !isPresentingFolderPicker else {
-            log("Folder picker already presenting; ignoring duplicate request.")
-            return
-        }
-        isPresentingFolderPicker = true
+    func useCustomURL(_ url: URL) {
+        folderURL = url
+    }
 
-        log("Presenting folder picker…")
+    func scanCurrentFolder() throws -> [DesktopFile] {
+        let resourceKeys: Set<URLResourceKey> = [
+            .isDirectoryKey,
+            .fileSizeKey,
+            .nameKey
+        ]
 
-        // Bring the app to front so the open panel is visible.
-        NSApp.activate(ignoringOtherApps: true)
+        let urls = try fileManager.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: Array(resourceKeys),
+            options: [.skipsHiddenFiles]
+        )
 
-        let panel = NSOpenPanel()
-        panel.title = "Choose a folder to declutter"
-        panel.prompt = "Use Folder"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-
-        panel.begin { [weak self] response in
-            guard let self else { return }
-            Task { @MainActor in
-                self.isPresentingFolderPicker = false
-
-                if response == .OK, let url = panel.url {
-                    self.selectedFolderURL = url
-                    self.log("Folder selected: \(url.path)")
-
-                    // Update scanner to use the chosen folder.
-                    FileScanner.shared.useCustomURL(url)
-
-                    // Load files from the newly-selected folder.
-                    self.loadFiles()
-                } else {
-                    self.log("Folder picker cancelled.")
-                }
+        let files: [DesktopFile] = urls.compactMap { url in
+            do {
+                let values = try url.resourceValues(forKeys: resourceKeys)
+                let isDirectory = values.isDirectory ?? false
+                let size = Int64(values.fileSize ?? 0)
+                let name = values.name ?? url.lastPathComponent
+                let fileType = FileType.classify(url: url, isDirectory: isDirectory)
+                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                return DesktopFile(url: url, name: name, fileSize: size, fileType: fileType, icon: icon, thumbnail: nil)
+            } catch {
+                return nil
             }
         }
-    }
 
-    /// Prompt for a folder only once per app run (if nothing has been selected yet).
-    @MainActor
-    func promptForFolderIfNeeded() {
-        guard !hasPromptedForFolder else { return }
-        hasPromptedForFolder = true
-
-        if selectedFolderURL == nil {
-            log("No folder selected yet; prompting on launch.")
-            promptForFolderAndLoad()
-        } else {
-            log("Folder already selected; skipping launch prompt.")
+        // Sort: folders first, then by name (case-insensitive)
+        return files.sorted {
+            if $0.fileType == .folder && $1.fileType != .folder { return true }
+            if $0.fileType != .folder && $1.fileType == .folder { return false }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
 
-    func loadFiles() {
-        log("Scanning folder: \(selectedFolderURL?.path ?? "(default)")")
-        do {
-            let loadedFiles = try FileScanner.shared.scanCurrentFolder()
-            DispatchQueue.main.async {
-                self.files = loadedFiles
-                self.currentFileIndex = self.files.isEmpty ? nil : 0
-                self.log("Scan complete. Found \(loadedFiles.count) items.")
-            }
-        } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = error.localizedDescription
-                self.log("Scan failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func acceptCurrentFile() {
-        guard !isPerformingFileAction else {
-            log("Ignoring action: already performing a file operation.")
+    func generateThumbnail(for file: DesktopFile, completion: @escaping (NSImage?) -> Void) {
+        if file.fileType == .folder {
+            print("Thumbnail: skipping folder \(file.name)")
+            completion(nil)
             return
         }
-        isPerformingFileAction = true
-        defer { isPerformingFileAction = false }
+        let size = CGSize(width: 512, height: 512)
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let request = QLThumbnailGenerator.Request(fileAt: file.url, size: size, scale: scale, representationTypes: .all)
 
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Action START: ACCEPT on index \(idx): \(files[idx].name)")
-        } else {
-            log("Action START: ACCEPT but currentFileIndex is invalid.")
-        }
-
-        // Implementation for accepting the file (e.g., keep as is, or move to accepted folder)
-        // After operation completes:
-        log("Action END: ACCEPT")
-
-        currentFileIndex = (currentFileIndex ?? 0) + 1
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Next selected index \(idx): \(files[idx].name)")
-        } else {
-            log("No next file selected (end of list or invalid index).")
-        }
-    }
-
-    func dumpCurrentFile() {
-        guard !isPerformingFileAction else {
-            log("Ignoring action: already performing a file operation.")
-            return
-        }
-        isPerformingFileAction = true
-        defer { isPerformingFileAction = false }
-
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Action START: DUMP on index \(idx): \(files[idx].name)")
-        } else {
-            log("Action START: DUMP but currentFileIndex is invalid.")
-        }
-
-        // Implementation for dumping the file (e.g., move to trash or delete)
-        // After operation completes:
-        log("Action END: DUMP")
-
-        currentFileIndex = (currentFileIndex ?? 0) + 1
-        if let idx = currentFileIndex, files.indices.contains(idx) {
-            log("Next selected index \(idx): \(files[idx].name)")
-        } else {
-            log("No next file selected (end of list or invalid index).")
+        QLThumbnailGenerator.shared.generateRepresentations(for: request) { thumbnail, _, error in
+            if let error {
+                print("Thumbnail error for \(file.name): \(error)")
+            }
+            if let image = thumbnail?.nsImage {
+                completion(image)
+            } else {
+                completion(nil)
+            }
         }
     }
 }
