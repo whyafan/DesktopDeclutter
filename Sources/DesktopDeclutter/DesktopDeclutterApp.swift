@@ -5,16 +5,22 @@ import AppKit
 struct DesktopDeclutterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
+    @StateObject private var viewModel = DeclutterViewModel()
+    
     var body: some Scene {
         // Main window that opens automatically
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: viewModel)
                 .frame(minWidth: 420, minHeight: 680)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 420, height: 680)
         .commands {
             CommandGroup(replacing: .newItem) {}
+        }
+        
+        Settings {
+            SettingsView(isPresented: Binding.constant(true), viewModel: viewModel)
         }
         
         // Menu bar icon for quick access

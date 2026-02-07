@@ -2,7 +2,8 @@ import SwiftUI
 import QuickLookUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = DeclutterViewModel()
+    @ObservedObject var viewModel: DeclutterViewModel
+    @StateObject private var cloudManager = CloudManager.shared
     
     @State private var showSettings = false
     @State private var showHistory = false
@@ -252,7 +253,7 @@ struct ContentView: View {
                                                             .opacity(file.decision != nil ? 0.5 : 1.0)
                                                             
                                                             // Cloud
-                                                            if viewModel.cloudDestinationURL != nil {
+                                                            if cloudManager.activeDestination != nil {
                                                                 FloatingActionButton(icon: "icloud.and.arrow.up.fill", shortcut: "C", color: .blue) {
                                                                     withAnimation { viewModel.moveToCloud(file) }
                                                                 }

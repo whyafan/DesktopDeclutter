@@ -36,7 +36,11 @@ class DeclutterViewModel: ObservableObject {
     @Published var selectedFileTypeFilter: FileType? = nil
     
     // Cloud
-    @Published var cloudDestinationURL: URL? = nil
+    // Cloud Manager
+    private let cloudManager = CloudManager.shared
+    
+    // File System
+    private let fileManager = FileManager.default
     
     // Suggestions
     @Published var currentFileSuggestions: [FileSuggestion] = []
@@ -324,59 +328,51 @@ class DeclutterViewModel: ObservableObject {
     }
     
     func moveToCloud(_ file: DesktopFile) {
-        guard let destination = cloudDestinationURL else {
-            print("No cloud path configured")
-            return
-        }
-        
-        // Move file
-        do {
-            let descURL = destination.appendingPathComponent(file.name)
-            try FileManager.default.moveItem(at: file.url, to: descURL)
-            
-            // Update state
-            if let index = files.firstIndex(where: { $0.id == file.id }) {
-                files[index].decision = .cloud
+        cloudManager.moveFileToCloud(file) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                switch result {
+                case .success:
+                    // Update state
+                    if let index = self.files.firstIndex(where: { $0.id == file.id }) {
+                        self.files[index].decision = .cloud
+                    }
+                    self.recordAction(.cloud, file: file, decision: .cloud)
+                    self.moveToNext()
+                    
+                case .failure(let error):
+                    print("Failed to move to cloud: \(error)")
+                    self.errorMessage = "Failed to move to Cloud: \(error.localizedDescription)"
+                }
             }
-            
-            recordAction(.cloud, file: file, decision: .cloud)
-            moveToNext()
-        } catch {
-            print("Failed to move to cloud: \(error)")
-            errorMessage = "Failed to move to Cloud: \(error.localizedDescription)"
         }
     }
     
     func moveGroupToCloud(_ filesToMove: [DesktopFile]) {
-        guard let destination = cloudDestinationURL else { return }
-        
+        // Naive serial implementation for now, or parallel?
+        // Let's do parallel but just trigger all.
         for file in filesToMove {
-            do {
-                let descURL = destination.appendingPathComponent(file.name)
-                try FileManager.default.moveItem(at: file.url, to: descURL)
-                
-                // Update state
-                if let index = files.firstIndex(where: { $0.id == file.id }) {
-                    files[index].decision = .cloud
+            cloudManager.moveFileToCloud(file) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    switch result {
+                    case .success:
+                        if let index = self.files.firstIndex(where: { $0.id == file.id }) {
+                            self.files[index].decision = .cloud
+                        }
+                        self.recordAction(.cloud, file: file, decision: .cloud)
+                    case .failure(let error):
+                        print("Failed to move \(file.name): \(error)")
+                    }
                 }
-                
-                recordAction(.cloud, file: file, decision: .cloud)
-            } catch {
-                print("Failed to move \(file.name) to cloud: \(error)")
             }
         }
         
         // If current file was in the group, move next
+        // (This might happen before moves verify, but UI responsiveness is key)
         if let current = currentFile, filesToMove.contains(where: { $0.id == current.id }) {
             moveToNext()
-        }
-    }
-    
-    func updateCloudSettings() {
-        if let path = UserDefaults.standard.string(forKey: "cloudPath"), !path.isEmpty {
-            cloudDestinationURL = URL(fileURLWithPath: path)
-        } else {
-            cloudDestinationURL = nil
         }
     }
     
@@ -444,12 +440,13 @@ class DeclutterViewModel: ObservableObject {
         case .stack:
             stackedFiles.removeAll { $0.id == lastAction.file.id }
         case .cloud:
-            // Move file back from cloud location to original?
-            // For now, just restore it in the UI list.
-            // Actual file move-back logic would be needed for true undo.
-            if let cloudPath = cloudDestinationURL {
+            // Try to move back from cloud
+            if let dest = cloudManager.activeDestination, let cloudPath = dest.getURL() {
+                let accessing = cloudPath.startAccessingSecurityScopedResource()
+                defer { if accessing { cloudPath.stopAccessingSecurityScopedResource() } }
+                
                 let movedURL = cloudPath.appendingPathComponent(lastAction.file.name)
-                // We should probably try to move it back if it exists there
+                // Try to move back
                 try? FileManager.default.moveItem(at: movedURL, to: lastAction.file.url)
             }
         }
@@ -489,8 +486,12 @@ class DeclutterViewModel: ObservableObject {
             case .stack: stackedFiles.removeAll { $0.id == file.id }
             case .cloud:
                 // Try to move back from cloud
-                if let cloudPath = cloudDestinationURL {
+                if let dest = cloudManager.activeDestination, let cloudPath = dest.getURL() {
+                    let accessing = cloudPath.startAccessingSecurityScopedResource()
+                    defer { if accessing { cloudPath.stopAccessingSecurityScopedResource() } }
+                    
                     let movedURL = cloudPath.appendingPathComponent(file.name)
+                    // Try to move back
                     try? FileManager.default.moveItem(at: movedURL, to: file.url)
                 }
             }

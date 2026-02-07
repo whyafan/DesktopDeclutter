@@ -1,144 +1,170 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 struct SettingsView: View {
     @Binding var isPresented: Bool
     @ObservedObject var viewModel: DeclutterViewModel
+    @StateObject private var cloudManager = CloudManager.shared
     
-    @AppStorage("cloudProvider") private var cloudProvider: CloudProvider = .iCloud
-    @AppStorage("cloudPath") private var cloudPathString: String = ""
+    init(isPresented: Binding<Bool>, viewModel: DeclutterViewModel) {
+        self._isPresented = isPresented
+        self.viewModel = viewModel
+    }
     
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Settings")
-                .font(.title2.weight(.semibold))
+        VStack(spacing: 0) {
+            headerView
+            Divider()
             
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Cloud Integration")
-                    .font(.headline)
-                
-                Picker("Provider", selection: $cloudProvider) {
-                    ForEach(CloudProvider.allCases, id: \.self) { provider in
-                        Text(provider.rawValue).tag(provider)
-                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    cloudDestinationsSection
+                    Divider()
+                    generalPreferencesSection
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: cloudProvider) { _ in
-                    // Reset path when provider changes, or try to auto-detect
-                    if cloudPathString.isEmpty {
-                        autoDetectPath()
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Destination Folder:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    HStack {
-                        Image(systemName: "folder.fill")
-                            .foregroundColor(.blue)
-                        Text(cloudPathString.isEmpty ? "Not Selected" : cloudPathString)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .help(cloudPathString)
-                        Spacer()
-                    }
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
-                    
-                    Button("Select Folder...") {
-                        selectFolder()
-                    }
+                .padding(20)
+            }
+        }
+        .frame(width: 500, height: 600)
+        .background(VisualEffectView(material: .popover, blendingMode: .behindWindow))
+    }
+    
+    private var headerView: some View {
+        HStack {
+            Text("Settings")
+                .font(.headline)
+            Spacer()
+            Button("Done") { isPresented = false }
+                .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .background(VisualEffectView(material: .headerView, blendingMode: .behindWindow))
+    }
+    
+    private var cloudDestinationsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Cloud Destinations")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.secondary)
+            
+            if cloudManager.destinations.isEmpty {
+                Text("No cloud folders connected.")
+                    .foregroundColor(.secondary)
+                    .italic()
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(cloudManager.destinations) { dest in
+                    destinationRow(for: dest)
                 }
             }
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .cornerRadius(12)
+            
+            Button(action: addNewDestination) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add Destination")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    private func destinationRow(for dest: CloudDestination) -> some View {
+        HStack {
+            Image(systemName: dest.provider.iconName)
+                .foregroundColor(.blue)
+                .font(.title3)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(dest.name)
+                    .font(.system(size: 14, weight: .medium))
+                Text(dest.path)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
             
             Spacer()
             
-            Button("Done") {
-                isPresented = false
+            if cloudManager.activeDestinationId == dest.id {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            } else {
+                Button("Set Active") {
+                    cloudManager.setActive(dest.id)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.blue)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            
+            Button(action: {
+                cloudManager.removeDestination(id: dest.id)
+            }) {
+                Image(systemName: "trash")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 8)
         }
-        .padding(30)
-        .frame(width: 400, height: 350)
-        .background(VisualEffectView(material: .popover, blendingMode: .behindWindow))
-        .onAppear {
-            if cloudPathString.isEmpty {
-                autoDetectPath()
+        .padding()
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(cloudManager.activeDestinationId == dest.id ? Color.blue.opacity(0.5) : Color(nsColor: .separatorColor).opacity(0.2), lineWidth: 1)
+        )
+    }
+    
+    private var generalPreferencesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("General")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.secondary)
+            
+            Toggle("Trash Immediately", isOn: Binding(
+                get: { viewModel.immediateBinning },
+                set: { viewModel.immediateBinning = $0 }
+            ))
+            .toggleStyle(.switch)
+            
+            Text("Files are moved to trash immediately instead of queued.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Divider().padding(.vertical, 8)
+            
+            Button("Change Scan Folder...") {
+                viewModel.promptForFolderAndLoad()
             }
         }
     }
     
-    private func selectFolder() {
+    private func addNewDestination() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Select Cloud Folder"
+        panel.prompt = "Connect Cloud Folder"
+        panel.message = "Select a local request folder for your cloud provider (e.g. iCloud Drive, Google Drive)"
         
-        // Bring to front
         NSApp.activate(ignoringOtherApps: true)
         
         if panel.runModal() == .OK, let url = panel.url {
-            cloudPathString = url.path
-            viewModel.updateCloudSettings()
+            // Determine provider guess
+            let path = url.path
+            var provider: CloudProvider = .custom
+            if path.contains("iCloud") { provider = .iCloud }
+            else if path.contains("Google") { provider = .googleDrive }
+            else if path.contains("OneDrive") { provider = .custom } // No enum yet
+            
+            let name = url.lastPathComponent
+            
+            cloudManager.addDestination(name: name, url: url, provider: provider)
         }
     }
-    
-    private func autoDetectPath() {
-        // Simple auto-detection logic
-        let fileManager = FileManager.default
-        var path: String?
-        
-        switch cloudProvider {
-        case .iCloud:
-            // Common iCloud Drive path
-            if let url = fileManager.url(forUbiquityContainerIdentifier: nil)?.appendingPathComponent("Documents") {
-               path = url.path
-            } else {
-                // Fallback attempt for standard path
-                let libraryPath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-                let candidates = [
-                    libraryPath.appendingPathComponent("Mobile Documents/com~apple~CloudDocs").path
-                ]
-                path = candidates.first(where: { fileManager.fileExists(atPath: $0) })
-            }
-            
-        case .googleDrive:
-            // Common Google Drive paths
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            let candidates = [
-                "/Volumes/GoogleDrive",
-                home.appendingPathComponent("Google Drive").path,
-                "/Volumes/GoogleDrive-1" // Sometimes numbered
-            ]
-            path = candidates.first(where: { fileManager.fileExists(atPath: $0) })
-            
-        case .custom:
-            break
-        }
-        
-        if let detected = path {
-            cloudPathString = detected
-            viewModel.updateCloudSettings()
-        }
-    }
-}
-
-enum CloudProvider: String, CaseIterable, Identifiable {
-    case iCloud = "iCloud Drive"
-    case googleDrive = "Google Drive"
-    case custom = "Custom"
-    
-    var id: String { self.rawValue }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GalleryGridView: View {
     @ObservedObject var viewModel: DeclutterViewModel
+    @StateObject private var cloudManager = CloudManager.shared
     @State private var selectedFiles: Set<UUID> = []
     @State private var hoveredFileId: UUID? = nil
     
@@ -106,7 +107,7 @@ struct GalleryGridView: View {
                         }
                         .buttonStyle(.plain)
                         
-                        if viewModel.cloudDestinationURL != nil {
+                        if cloudManager.activeDestination != nil {
                             Spacer()
                             
                             Button(action: {
