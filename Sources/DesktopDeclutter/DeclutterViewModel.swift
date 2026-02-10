@@ -31,6 +31,9 @@ class DeclutterViewModel: ObservableObject {
     
     // Preview
     @Published var previewUrl: URL? = nil
+
+    // Move progress
+    @Published var movingItemIds: Set<UUID> = []
     
     // Filters
     @Published var selectedFileTypeFilter: FileType? = nil
@@ -54,6 +57,10 @@ class DeclutterViewModel: ObservableObject {
             return files.filter { $0.fileType == filter }
         }
         return files
+    }
+
+    var movingCount: Int {
+        movingItemIds.count
     }
     
     private var lastSuggestionFileId: UUID? = nil
@@ -180,6 +187,9 @@ class DeclutterViewModel: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
+        panel.level = .floating
+        panel.isFloatingPanel = true
+        panel.makeKeyAndOrderFront(nil)
 
         panel.begin { [weak self] response in
             guard let self else { return }
@@ -327,43 +337,54 @@ class DeclutterViewModel: ObservableObject {
         moveToNext()
     }
     
-    func moveToCloud(_ file: DesktopFile) {
-        cloudManager.moveFileToCloud(file) { [weak self] result in
+    func moveToCloud(_ file: DesktopFile, destination: CloudDestination? = nil) {
+        let sourceFolderName = selectedFolderURL?.lastPathComponent
+        cloudManager.moveFileToCloud(file, sourceFolderName: sourceFolderName, destination: destination) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 
                 switch result {
-                case .success:
+                case .success(let movedToURL):
                     // Update state
                     if let index = self.files.firstIndex(where: { $0.id == file.id }) {
                         self.files[index].decision = .cloud
                     }
-                    self.recordAction(.cloud, file: file, decision: .cloud)
+                    self.recordAction(.cloud, file: file, decision: .cloud, movedToURL: movedToURL, destinationId: destination?.id ?? self.cloudManager.activeDestinationId)
                     self.moveToNext()
                     
                 case .failure(let error):
                     print("Failed to move to cloud: \(error)")
-                    self.errorMessage = "Failed to move to Cloud: \(error.localizedDescription)"
+                    let nsError = error as NSError
+                    if nsError.domain == NSCocoaErrorDomain && nsError.code == 513 {
+                        self.errorMessage = "Permission denied. Please re-add the cloud destination and choose a writable folder (e.g., Google Drive → My Drive)."
+                    } else {
+                        self.errorMessage = "Failed to move to Cloud: \(error.localizedDescription)"
+                    }
                 }
             }
         }
     }
     
-    func moveGroupToCloud(_ filesToMove: [DesktopFile]) {
+    func moveGroupToCloud(_ filesToMove: [DesktopFile], destination: CloudDestination? = nil) {
         // Naive serial implementation for now, or parallel?
         // Let's do parallel but just trigger all.
         for file in filesToMove {
-            cloudManager.moveFileToCloud(file) { [weak self] result in
+            let sourceFolderName = selectedFolderURL?.lastPathComponent
+            cloudManager.moveFileToCloud(file, sourceFolderName: sourceFolderName, destination: destination) { [weak self] result in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
                     switch result {
-                    case .success:
+                    case .success(let movedToURL):
                         if let index = self.files.firstIndex(where: { $0.id == file.id }) {
                             self.files[index].decision = .cloud
                         }
-                        self.recordAction(.cloud, file: file, decision: .cloud)
+                        self.recordAction(.cloud, file: file, decision: .cloud, movedToURL: movedToURL, destinationId: destination?.id ?? self.cloudManager.activeDestinationId)
                     case .failure(let error):
                         print("Failed to move \(file.name): \(error)")
+                        let nsError = error as NSError
+                        if nsError.domain == NSCocoaErrorDomain && nsError.code == 513 {
+                            self.errorMessage = "Permission denied. Please re-add the cloud destination and choose a writable folder (e.g., Google Drive → My Drive)."
+                        }
                     }
                 }
             }
@@ -373,6 +394,213 @@ class DeclutterViewModel: ObservableObject {
         // (This might happen before moves verify, but UI responsiveness is key)
         if let current = currentFile, filesToMove.contains(where: { $0.id == current.id }) {
             moveToNext()
+        }
+    }
+
+    private func uniqueURL(for url: URL, fileManager: FileManager) -> URL {
+        if !fileManager.fileExists(atPath: url.path) {
+            return url
+        }
+
+        let ext = url.pathExtension
+        let base = url.deletingPathExtension().lastPathComponent
+        let parent = url.deletingLastPathComponent()
+        var counter = 2
+
+        while true {
+            let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+            let candidate = parent.appendingPathComponent(name)
+            if !fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            counter += 1
+        }
+    }
+
+    func moveToFolder(_ file: DesktopFile, destinationURL: URL) {
+        Task { @MainActor in
+            movingItemIds.insert(file.id)
+        }
+        Task.detached { [file, destinationURL] in
+            let fileManager = FileManager.default
+            func uniqueURL(for url: URL) -> URL {
+                if !fileManager.fileExists(atPath: url.path) {
+                    return url
+                }
+
+                let ext = url.pathExtension
+                let base = url.deletingPathExtension().lastPathComponent
+                let parent = url.deletingLastPathComponent()
+                var counter = 2
+
+                while true {
+                    let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+                    let candidate = parent.appendingPathComponent(name)
+                    if !fileManager.fileExists(atPath: candidate.path) {
+                        return candidate
+                    }
+                    counter += 1
+                }
+            }
+
+            let targetURL = uniqueURL(for: destinationURL.appendingPathComponent(file.name))
+            let accessing = destinationURL.startAccessingSecurityScopedResource()
+            defer { if accessing { destinationURL.stopAccessingSecurityScopedResource() } }
+
+            do {
+                do {
+                    try fileManager.moveItem(at: file.url, to: targetURL)
+                } catch {
+                    if !fileManager.fileExists(atPath: file.url.path),
+                       fileManager.fileExists(atPath: targetURL.path) {
+                        // Move likely already completed in background; treat as success.
+                    } else {
+                        try fileManager.copyItem(at: file.url, to: targetURL)
+                        try fileManager.removeItem(at: file.url)
+                    }
+                }
+
+                await MainActor.run {
+                    if let index = self.files.firstIndex(where: { $0.id == file.id }) {
+                        self.files[index].decision = .moved
+                    }
+                    self.recordAction(.move, file: file, decision: .moved, movedToURL: targetURL)
+                    self.movingItemIds.remove(file.id)
+                    self.moveToNext()
+                }
+            } catch {
+                print("Move Error: \(error)")
+                await MainActor.run {
+                    self.movingItemIds.remove(file.id)
+                    self.errorMessage = "Failed to move: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    func moveGroupToFolder(_ filesToMove: [DesktopFile], destinationURL: URL) {
+        Task { @MainActor in
+            for file in filesToMove {
+                movingItemIds.insert(file.id)
+            }
+        }
+        Task.detached { [filesToMove, destinationURL] in
+            let fileManager = FileManager.default
+            func uniqueURL(for url: URL) -> URL {
+                if !fileManager.fileExists(atPath: url.path) {
+                    return url
+                }
+
+                let ext = url.pathExtension
+                let base = url.deletingPathExtension().lastPathComponent
+                let parent = url.deletingLastPathComponent()
+                var counter = 2
+
+                while true {
+                    let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+                    let candidate = parent.appendingPathComponent(name)
+                    if !fileManager.fileExists(atPath: candidate.path) {
+                        return candidate
+                    }
+                    counter += 1
+                }
+            }
+
+            let accessing = destinationURL.startAccessingSecurityScopedResource()
+            defer { if accessing { destinationURL.stopAccessingSecurityScopedResource() } }
+
+            for file in filesToMove {
+                let targetURL = uniqueURL(for: destinationURL.appendingPathComponent(file.name))
+                do {
+                    do {
+                        try fileManager.moveItem(at: file.url, to: targetURL)
+                    } catch {
+                        if !fileManager.fileExists(atPath: file.url.path),
+                           fileManager.fileExists(atPath: targetURL.path) {
+                            // Move likely already completed in background; treat as success.
+                        } else {
+                            try fileManager.copyItem(at: file.url, to: targetURL)
+                            try fileManager.removeItem(at: file.url)
+                        }
+                    }
+
+                    await MainActor.run {
+                        if let index = self.files.firstIndex(where: { $0.id == file.id }) {
+                            self.files[index].decision = .moved
+                        }
+                        self.recordAction(.move, file: file, decision: .moved, movedToURL: targetURL)
+                        self.movingItemIds.remove(file.id)
+                    }
+                } catch {
+                    print("Move Error for \(file.name): \(error)")
+                    _ = await MainActor.run {
+                        self.movingItemIds.remove(file.id)
+                    }
+                }
+            }
+
+            await MainActor.run {
+                if let current = self.currentFile, filesToMove.contains(where: { $0.id == current.id }) {
+                    self.moveToNext()
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func promptForMoveDestination(files: [DesktopFile]) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Move Here"
+        panel.message = "Choose a folder to move the selected items into."
+        panel.level = .floating
+        panel.isFloatingPanel = true
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+
+        panel.begin { [weak self] response in
+            guard let self else { return }
+            if response == .OK, let url = panel.url {
+                if let provider = self.cloudManager.isValidCloudDirectory(url) {
+                    let canonicalURL = self.cloudManager.canonicalCloudURL(for: url, provider: provider) ?? url
+                    let alert = NSAlert()
+                    alert.messageText = "Destination is a cloud folder"
+                    alert.informativeText = "The destination you chose is a cloud directory. Cloud moves are safer and keep your files organized under DesktopDeclutter."
+                    alert.alertStyle = .informational
+                    alert.addButton(withTitle: "Use Cloud")
+                    alert.addButton(withTitle: "Move Anyway")
+                    alert.addButton(withTitle: "Cancel")
+
+                    let choice = alert.runModal()
+                    if choice == .alertFirstButtonReturn {
+                        let dest = self.cloudManager.findDestination(matching: canonicalURL)
+                            ?? CloudDestination(name: canonicalURL.lastPathComponent, path: canonicalURL.path, bookmarkData: nil, provider: provider)
+
+                        if self.cloudManager.findDestination(matching: canonicalURL) == nil {
+                            self.cloudManager.addDestination(name: dest.name, url: canonicalURL, provider: provider)
+                        }
+
+                        if files.count == 1, let file = files.first {
+                            self.moveToCloud(file, destination: self.cloudManager.findDestination(matching: canonicalURL))
+                        } else {
+                            let destination = self.cloudManager.findDestination(matching: canonicalURL)
+                            self.moveGroupToCloud(files, destination: destination)
+                        }
+                        return
+                    } else if choice == .alertThirdButtonReturn {
+                        return
+                    }
+                }
+
+                if files.count == 1, let file = files.first {
+                    self.moveToFolder(file, destinationURL: url)
+                } else {
+                    self.moveGroupToFolder(files, destinationURL: url)
+                }
+            }
         }
     }
     
@@ -387,6 +615,7 @@ class DeclutterViewModel: ObservableObject {
             case bin
             case stack
             case cloud
+            case move
         }
         
         let type: ActionType
@@ -394,18 +623,22 @@ class DeclutterViewModel: ObservableObject {
         let previousIndex: Int
         let fileOriginalIndex: Int?
         let decision: FileDecision?
+        let movedToURL: URL?
+        let destinationId: UUID?
     }
     
     @Published var actionHistory: [Action] = []
     private let maxHistorySize = 50
     
-    private func recordAction(_ type: Action.ActionType, file: DesktopFile, originalIndex: Int? = nil, decision: FileDecision? = nil) {
+    private func recordAction(_ type: Action.ActionType, file: DesktopFile, originalIndex: Int? = nil, decision: FileDecision? = nil, movedToURL: URL? = nil, destinationId: UUID? = nil) {
         let action = Action(
             type: type,
             file: file,
             previousIndex: currentFileIndex,
             fileOriginalIndex: originalIndex,
-            decision: decision
+            decision: decision,
+            movedToURL: movedToURL,
+            destinationId: destinationId
         )
         actionHistory.append(action)
         
@@ -426,6 +659,7 @@ class DeclutterViewModel: ObservableObject {
         if let index = files.firstIndex(where: { $0.id == lastAction.file.id }) {
             files[index].decision = nil
         }
+        viewedFileIds.remove(lastAction.file.id)
         
         // Restore counters
         switch lastAction.type {
@@ -440,13 +674,14 @@ class DeclutterViewModel: ObservableObject {
         case .stack:
             stackedFiles.removeAll { $0.id == lastAction.file.id }
         case .cloud:
-            // Try to move back from cloud
-            if let dest = cloudManager.activeDestination, let cloudPath = dest.getURL() {
-                let accessing = cloudPath.startAccessingSecurityScopedResource()
-                defer { if accessing { cloudPath.stopAccessingSecurityScopedResource() } }
-                
-                let movedURL = cloudPath.appendingPathComponent(lastAction.file.name)
-                // Try to move back
+            if let movedURL = lastAction.movedToURL {
+                let destURL = cloudManager.resolvedURL(for: lastAction.destinationId)
+                let accessing = destURL?.startAccessingSecurityScopedResource() ?? false
+                defer { if accessing { destURL?.stopAccessingSecurityScopedResource() } }
+                try? FileManager.default.moveItem(at: movedURL, to: lastAction.file.url)
+            }
+        case .move:
+            if let movedURL = lastAction.movedToURL {
                 try? FileManager.default.moveItem(at: movedURL, to: lastAction.file.url)
             }
         }
@@ -474,6 +709,7 @@ class DeclutterViewModel: ObservableObject {
         if let index = files.firstIndex(where: { $0.id == file.id }) {
             files[index].decision = nil
         }
+        viewedFileIds.remove(file.id)
         
         // Revert stats
         if let lastAction = actionHistory.last(where: { $0.file.id == file.id }) {
@@ -485,13 +721,14 @@ class DeclutterViewModel: ObservableObject {
                 if !immediateBinning { binnedFiles.removeAll { $0.id == file.id } }
             case .stack: stackedFiles.removeAll { $0.id == file.id }
             case .cloud:
-                // Try to move back from cloud
-                if let dest = cloudManager.activeDestination, let cloudPath = dest.getURL() {
-                    let accessing = cloudPath.startAccessingSecurityScopedResource()
-                    defer { if accessing { cloudPath.stopAccessingSecurityScopedResource() } }
-                    
-                    let movedURL = cloudPath.appendingPathComponent(file.name)
-                    // Try to move back
+                if let movedURL = lastAction.movedToURL {
+                    let destURL = cloudManager.resolvedURL(for: lastAction.destinationId)
+                    let accessing = destURL?.startAccessingSecurityScopedResource() ?? false
+                    defer { if accessing { destURL?.stopAccessingSecurityScopedResource() } }
+                    try? FileManager.default.moveItem(at: movedURL, to: file.url)
+                }
+            case .move:
+                if let movedURL = lastAction.movedToURL {
                     try? FileManager.default.moveItem(at: movedURL, to: file.url)
                 }
             }
@@ -578,8 +815,21 @@ class DeclutterViewModel: ObservableObject {
 
     func skipFolder(_ file: DesktopFile) {
         print("Folder decision: skip \(file.url.path)")
-        files.removeAll { $0.id == file.id }
-        moveToNext()
+        if let removedIndex = filteredFiles.firstIndex(where: { $0.id == file.id }) {
+            files.removeAll { $0.id == file.id }
+            if filteredFiles.isEmpty {
+                if folderStack.isEmpty {
+                    promptForFolderAndLoad()
+                } else {
+                    returnToParentFolder()
+                }
+                return
+            }
+            currentFileIndex = min(removedIndex, filteredFiles.count - 1)
+            generateThumbnails(for: currentFileIndex)
+        } else {
+            moveToNext()
+        }
     }
 
     func enterFolder(_ file: DesktopFile) {
@@ -600,7 +850,6 @@ class DeclutterViewModel: ObservableObject {
         
         selectedFolderURL = file.url
         FileScanner.shared.useCustomURL(file.url)
-        loadFiles()
         loadFiles()
     }
 

@@ -11,6 +11,17 @@ struct ContentView: View {
     @State private var showBinnedFiles = false
     @State private var showFilters = false
     @State private var window: NSWindow?
+    
+    private var cloudActionIcon: String {
+        switch cloudManager.activeDestination?.provider {
+        case .googleDrive:
+            return "externaldrive.fill"
+        case .iCloud:
+            return "icloud.and.arrow.up.fill"
+        default:
+            return "icloud.and.arrow.up.fill"
+        }
+    }
 
 
     
@@ -83,11 +94,19 @@ struct ContentView: View {
                                 
                                 // History
                                 Button(action: { showHistory.toggle() }) {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 28, height: 28)
-                                        .background { Circle().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3)) }
+                                    ZStack {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 28, height: 28)
+                                            .background { Circle().fill(Color(nsColor: .quaternaryLabelColor).opacity(0.3)) }
+                                        if viewModel.movingCount > 0 {
+                                            Circle()
+                                                .fill(Color.orange)
+                                                .frame(width: 8, height: 8)
+                                                .offset(x: 10, y: -10)
+                                        }
+                                    }
                                 }
                                 .buttonStyle(.plain)
                                 .popover(isPresented: $showHistory, arrowEdge: .bottom) {
@@ -196,6 +215,7 @@ struct ContentView: View {
                                     } else if let file = viewModel.currentFile {
                                         if file.fileType == .folder {
                                             FolderActionView(viewModel: viewModel, folder: file)
+                                                .id(file.id)
                                         } else {
                                             // Card View for File
                                             ZStack {
@@ -219,66 +239,50 @@ struct ContentView: View {
                                                         ZStack {
                                                             Color.black.opacity(0.3)
                                                                 .cornerRadius(16)
-                                                            Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : "square.stack.3d.up.fill")))
+                                                            Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : (decision == .moved ? "folder.fill.badge.arrow.forward" : "square.stack.3d.up.fill"))))
                                                                 .font(.system(size: 80))
                                                                 .foregroundColor(.white)
                                                                 .shadow(radius: 10)
                                                         }
                                                         .allowsHitTesting(false)
                                                     }
+                                                    if viewModel.movingItemIds.contains(file.id) {
+                                                        ZStack {
+                                                            Color.black.opacity(0.35)
+                                                                .cornerRadius(16)
+                                                            VStack(spacing: 12) {
+                                                                ProgressView()
+                                                                    .progressViewStyle(.circular)
+                                                                Text("Moving…")
+                                                                    .font(.system(size: 14, weight: .semibold))
+                                                                    .foregroundColor(.white)
+                                                            }
+                                                        }
+                                                        .allowsHitTesting(false)
+                                                    }
                                                 }
-                                                .padding(.bottom, 60) // Space for FABs
+                                                .padding(.bottom, 120) // Space for action dock
                                                 
                                                 // Floating Action Buttons
                                                 if !viewModel.showGroupReview {
                                                     VStack {
                                                         Spacer()
-                                                        HStack(spacing: 30) {
-                                                            // Undo Button
-                                                            Button(action: { withAnimation { _ = viewModel.undoLastAction() } }) {
-                                                                Image(systemName: "arrow.uturn.backward.circle.fill")
-                                                                    .resizable()
-                                                                    .frame(width: 50, height: 50)
-                                                                    .foregroundColor(viewModel.canUndo ? .orange : .gray.opacity(0.3))
-                                                                    .background(Circle().fill(Color.white).shadow(radius: 4))
-                                                            }
-                                                            .buttonStyle(.plain)
-                                                            .disabled(!viewModel.canUndo)
-                                                            .help("Undo (Cmd+Z)")
-                                                            
-                                                            // Bin
-                                                            FloatingActionButton(icon: "trash.fill", shortcut: "←", color: .red) {
-                                                                withAnimation { viewModel.binCurrentFile() }
-                                                            }
-                                                            .opacity(file.decision != nil ? 0.5 : 1.0)
-                                                            
-                                                            // Cloud
-                                                            if cloudManager.activeDestination != nil {
-                                                                FloatingActionButton(icon: "icloud.and.arrow.up.fill", shortcut: "C", color: .blue) {
-                                                                    withAnimation { viewModel.moveToCloud(file) }
-                                                                }
-                                                                .opacity(file.decision != nil ? 0.5 : 1.0)
-                                                            }
-                                                            
-                                                            // Keep
-                                                            FloatingActionButton(icon: "checkmark.circle.fill", shortcut: "→", color: .green) {
-                                                                withAnimation { viewModel.keepCurrentFile() }
-                                                            }
-                                                            .opacity(file.decision != nil ? 0.5 : 1.0)
-                                                            
-                                                            // Forward Button
-                                                            Button(action: { withAnimation { viewModel.goForward() } }) {
-                                                                Image(systemName: "arrow.right.circle.fill")
-                                                                    .resizable()
-                                                                    .frame(width: 50, height: 50)
-                                                                    .foregroundColor(viewModel.canRedo() ? .blue : .gray.opacity(0.3))
-                                                                    .background(Circle().fill(Color.white).shadow(radius: 4))
-                                                            }
-                                                            .buttonStyle(.plain)
-                                                            .disabled(!viewModel.canRedo())
-                                                            .help("Next File")
-                                                        }
-                                                        .padding(.bottom, 30)
+                                                        ActionDockPanel(
+                                                            canUndo: viewModel.canUndo,
+                                                            canForward: viewModel.canRedo(),
+                                                            hasDecision: file.decision != nil,
+                                                            cloudIcon: cloudActionIcon,
+                                                            cloudDestinations: cloudManager.destinations,
+                                                            cloudDestinationName: { cloudManager.destinationDisplayName($0) },
+                                                            onUndo: { withAnimation { _ = viewModel.undoLastAction() } },
+                                                            onBin: { withAnimation { viewModel.binCurrentFile() } },
+                                                            onKeep: { withAnimation { viewModel.keepCurrentFile() } },
+                                                            onCloud: { withAnimation { viewModel.moveToCloud(file) } },
+                                                            onCloudPick: { dest in withAnimation { viewModel.moveToCloud(file, destination: dest) } },
+                                                            onMove: { viewModel.promptForMoveDestination(files: [file]) },
+                                                            onForward: { withAnimation { viewModel.goForward() } }
+                                                        )
+                                                        .padding(.bottom, 22)
                                                     }
                                                 }
                                             }
@@ -389,6 +393,11 @@ struct ContentView: View {
                     viewModel.keepCurrentFile()
                     return nil
                 }
+            case 3: // F key
+                if !viewModel.isFinished {
+                    viewModel.goForward()
+                    return nil
+                }
             case 49: // Spacebar
                 if !viewModel.isFinished, let file = viewModel.currentFile {
                     QuickLookHelper.shared.preview(url: file.url)
@@ -397,6 +406,16 @@ struct ContentView: View {
             case 1: // S key
                 if !viewModel.isFinished {
                     viewModel.stackCurrentFile()
+                    return nil
+                }
+            case 8: // C key
+                if !viewModel.isFinished, let file = viewModel.currentFile {
+                    viewModel.moveToCloud(file)
+                    return nil
+                }
+            case 46: // M key
+                if !viewModel.isFinished, let file = viewModel.currentFile {
+                    viewModel.promptForMoveDestination(files: [file])
                     return nil
                 }
             case 36: // Return
@@ -496,6 +515,251 @@ struct FloatingActionButton: View {
         .onHover { hovering in
             isHovered = hovering
         }
+    }
+}
+
+struct FloatingActionButtonLabel: View {
+    let icon: String
+    let shortcut: String
+    let color: Color
+
+    @State private var isHovered = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(.ultraThinMaterial)
+                .frame(width: 64, height: 64)
+                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+
+            Circle()
+                .fill(color.opacity(isHovered ? 0.9 : 0.85))
+                .frame(width: 64, height: 64)
+
+            Image(systemName: icon)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundColor(.white)
+
+            VStack {
+                Spacer()
+                Text(shortcut)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+                    .padding(.bottom, 4)
+            }
+        }
+        .scaleEffect(isHovered ? 1.1 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}
+
+struct ActionDockPanel: View {
+    let canUndo: Bool
+    let canForward: Bool
+    let hasDecision: Bool
+    let cloudIcon: String
+    let cloudDestinations: [CloudDestination]
+    let cloudDestinationName: (CloudDestination) -> String
+    let onUndo: () -> Void
+    let onBin: () -> Void
+    let onKeep: () -> Void
+    let onCloud: () -> Void
+    let onCloudPick: (CloudDestination) -> Void
+    let onMove: () -> Void
+    let onForward: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                ActionDockButton(
+                    icon: "trash.fill",
+                    label: "Bin",
+                    shortcut: "←",
+                    color: .red,
+                    isPrimary: true,
+                    isEnabled: !hasDecision,
+                    action: onBin
+                )
+
+                ActionDockButton(
+                    icon: "checkmark.circle.fill",
+                    label: "Keep",
+                    shortcut: "→",
+                    color: .green,
+                    isPrimary: true,
+                    isEnabled: !hasDecision,
+                    action: onKeep
+                )
+            }
+
+            HStack(spacing: 12) {
+                ActionDockButton(
+                    icon: "arrow.uturn.backward",
+                    label: "Undo",
+                    shortcut: "⌘Z",
+                    color: .orange,
+                    isPrimary: false,
+                    isEnabled: canUndo,
+                    action: onUndo
+                )
+
+                if cloudDestinations.isEmpty {
+                    ActionDockButton(
+                        icon: cloudIcon,
+                        label: "Cloud",
+                        shortcut: "C",
+                        color: .blue,
+                        isPrimary: false,
+                        isEnabled: false,
+                        action: {}
+                    )
+                    .help("Add a cloud destination in Settings")
+                } else if cloudDestinations.count > 1 {
+                    Menu {
+                        ForEach(cloudDestinations) { dest in
+                            Button(cloudDestinationName(dest)) {
+                                onCloudPick(dest)
+                            }
+                        }
+                    } label: {
+                        ActionDockButtonLabel(
+                            icon: cloudIcon,
+                            label: "Cloud",
+                            shortcut: "C",
+                            color: .blue,
+                            isPrimary: false,
+                            isEnabled: !hasDecision
+                        )
+                    }
+                    .disabled(hasDecision)
+                    .buttonStyle(.plain)
+                } else {
+                    ActionDockButton(
+                        icon: cloudIcon,
+                        label: "Cloud",
+                        shortcut: "C",
+                        color: .blue,
+                        isPrimary: false,
+                        isEnabled: !hasDecision,
+                        action: onCloud
+                    )
+                }
+
+                ActionDockButton(
+                    icon: "folder.fill.badge.arrow.forward",
+                    label: "Move",
+                    shortcut: "M",
+                    color: .teal,
+                    isPrimary: false,
+                    isEnabled: !hasDecision,
+                    action: onMove
+                )
+
+                ActionDockButton(
+                    icon: "arrow.right",
+                    label: "Next",
+                    shortcut: "F",
+                    color: .blue,
+                    isPrimary: false,
+                    isEnabled: canForward,
+                    action: onForward
+                )
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.4))
+                VisualEffectView(material: .sidebar, blendingMode: .withinWindow)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            }
+        )
+        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 10)
+    }
+}
+
+struct ActionDockButton: View {
+    let icon: String
+    let label: String
+    let shortcut: String
+    let color: Color
+    let isPrimary: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            ActionDockButtonLabel(
+                icon: icon,
+                label: label,
+                shortcut: shortcut,
+                color: color,
+                isPrimary: isPrimary,
+                isEnabled: isEnabled
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1.0 : 0.35)
+        .scaleEffect(isHovered && isEnabled ? 1.03 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}
+
+struct ActionDockButtonLabel: View {
+    let icon: String
+    let label: String
+    let shortcut: String
+    let color: Color
+    let isPrimary: Bool
+    let isEnabled: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(isEnabled ? 0.9 : 0.4))
+                    .frame(width: isPrimary ? 36 : 28, height: isPrimary ? 36 : 28)
+                Image(systemName: icon)
+                    .font(.system(size: isPrimary ? 16 : 13, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: isPrimary ? 14 : 12, weight: .semibold))
+                    .foregroundColor(.white)
+                Text(shortcut)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, isPrimary ? 12 : 8)
+        .padding(.horizontal, isPrimary ? 16 : 12)
+        .frame(width: isPrimary ? 170 : 120)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(isPrimary ? 0.35 : 0.25))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 

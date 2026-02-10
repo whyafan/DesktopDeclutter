@@ -84,7 +84,7 @@ struct FolderStructureView: View {
                                 
                                 // Processed Status Icons
                                 if let decision = file.decision {
-                                    Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : "square.stack.3d.up.fill")))
+                                    Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : (decision == .moved ? "folder.fill.badge.arrow.forward" : "square.stack.3d.up.fill"))))
                                         .font(.system(size: 12))
                                         .foregroundColor(decision == .kept ? .green : (decision == .binned ? .red : .blue))
                                 }

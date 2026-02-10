@@ -107,26 +107,66 @@ struct GalleryGridView: View {
                         }
                         .buttonStyle(.plain)
                         
-                        if cloudManager.activeDestination != nil {
+                        if !cloudManager.destinations.isEmpty {
                             Spacer()
-                            
-                            Button(action: {
-                                let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
-                                viewModel.moveGroupToCloud(filesToMove)
-                                selectedFiles.removeAll()
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "icloud.and.arrow.up.fill")
-                                    Text("Cloud (\(selectedFiles.count))")
+
+                            if cloudManager.destinations.count > 1 {
+                                Menu {
+                                    ForEach(cloudManager.destinations) { dest in
+                                        Button(cloudManager.destinationDisplayName(dest)) {
+                                            let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
+                                            viewModel.moveGroupToCloud(filesToMove, destination: dest)
+                                            selectedFiles.removeAll()
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "icloud.and.arrow.up.fill")
+                                        Text("Cloud (\(selectedFiles.count))")
+                                    }
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.blue))
                                 }
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Capsule().fill(Color.blue))
+                                .buttonStyle(.plain)
+                            } else {
+                                Button(action: {
+                                    let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
+                                    viewModel.moveGroupToCloud(filesToMove)
+                                    selectedFiles.removeAll()
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "icloud.and.arrow.up.fill")
+                                        Text("Cloud (\(selectedFiles.count))")
+                                    }
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.blue))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+
+                        Button(action: {
+                            let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
+                            viewModel.promptForMoveDestination(files: filesToMove)
+                            selectedFiles.removeAll()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "folder.fill.badge.arrow.forward")
+                                Text("Move (\(selectedFiles.count))")
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.teal))
+                        }
+                        .buttonStyle(.plain)
                         
                         Spacer()
                         

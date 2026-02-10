@@ -39,6 +39,7 @@ enum FileDecision: String, Codable {
     case binned
     case stacked
     case cloud
+    case moved
 }
 
 enum FileType: String, CaseIterable, Hashable {

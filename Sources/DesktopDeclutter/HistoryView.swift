@@ -21,6 +21,26 @@ struct HistoryView: View {
             .background(VisualEffectView(material: .headerView, blendingMode: .behindWindow))
             
             Divider()
+
+            if viewModel.movingCount > 0 {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Moving \(viewModel.movingCount) item\(viewModel.movingCount == 1 ? "" : "s")…")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    ProgressView(value: 0.2)
+                        .progressViewStyle(.linear)
+                        .opacity(0.5)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                Divider()
+            }
             
             if viewModel.actionHistory.isEmpty {
                 VStack(spacing: 16) {
@@ -121,6 +141,7 @@ struct HistoryView: View {
         case .bin: return "trash.circle.fill"
         case .stack: return "square.stack.3d.up.fill"
         case .cloud: return "icloud.and.arrow.up.fill"
+        case .move: return "folder.fill.badge.arrow.forward"
         }
     }
     
@@ -130,6 +151,7 @@ struct HistoryView: View {
         case .bin: return .red
         case .stack: return .blue
         case .cloud: return .blue
+        case .move: return .teal
         }
     }
     
@@ -139,6 +161,7 @@ struct HistoryView: View {
         case .bin: return "Moved to Bin" // or Trash
         case .stack: return "Stacked"
         case .cloud: return "Moved to Cloud"
+        case .move: return "Moved"
         }
     }
 }

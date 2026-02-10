@@ -151,20 +151,58 @@ struct SettingsView: View {
         panel.allowsMultipleSelection = false
         panel.prompt = "Connect Cloud Folder"
         panel.message = "Select a local request folder for your cloud provider (e.g. iCloud Drive, Google Drive)"
+        panel.level = .floating
+        panel.isFloatingPanel = true
         
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
         
         if panel.runModal() == .OK, let url = panel.url {
-            // Determine provider guess
-            let path = url.path
-            var provider: CloudProvider = .custom
-            if path.contains("iCloud") { provider = .iCloud }
-            else if path.contains("Google") { provider = .googleDrive }
-            else if path.contains("OneDrive") { provider = .custom } // No enum yet
-            
-            let name = url.lastPathComponent
-            
-            cloudManager.addDestination(name: name, url: url, provider: provider)
+            guard let provider = cloudManager.isValidCloudDirectory(url) else {
+                let alert = NSAlert()
+                alert.messageText = "Choose a cloud folder"
+                alert.informativeText = "Only cloud folders (iCloud Drive, Google Drive, or other CloudStorage providers) can be added here."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+                return
+            }
+
+            let canonicalURL = cloudManager.canonicalCloudURL(for: url, provider: provider) ?? url
+            var isDirectory: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: canonicalURL.path, isDirectory: &isDirectory) || !isDirectory.boolValue {
+                let alert = NSAlert()
+                alert.messageText = "Choose a writable cloud folder"
+                alert.informativeText = "Google Drive requires a writable folder like “My Drive”. Please choose a folder you can write to."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+                return
+            }
+
+            let confirm = NSAlert()
+            confirm.messageText = "Set up this cloud folder?"
+            confirm.informativeText = "DesktopDeclutter will create a “DesktopDeclutter” folder inside this location and move files into it."
+            confirm.alertStyle = .informational
+            confirm.addButton(withTitle: "Set Up")
+            confirm.addButton(withTitle: "Cancel")
+
+            if confirm.runModal() == .alertFirstButtonReturn {
+                switch cloudManager.validateDestinationWritable(canonicalURL) {
+                case .success:
+                    break
+                case .failure:
+                    let alert = NSAlert()
+                    alert.messageText = "This folder isn’t writable"
+                    alert.informativeText = "Google Drive requires a writable folder like “My Drive”. Please choose a folder you can write to."
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                    return
+                }
+                let name = canonicalURL.lastPathComponent
+                cloudManager.addDestination(name: name, url: canonicalURL, provider: provider)
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FolderActionView: View {
     @ObservedObject var viewModel: DeclutterViewModel
+    @StateObject private var cloudManager = CloudManager.shared
     @State private var folderContents: [String] = []
     @State private var childCount: Int = 0
     let folder: DesktopFile
@@ -93,6 +94,31 @@ struct FolderActionView: View {
                         }
                     }
                     .buttonStyle(StandardButtonStyle())
+
+                    if !cloudManager.destinations.isEmpty {
+                        if cloudManager.destinations.count > 1 {
+                            Menu {
+                                ForEach(cloudManager.destinations) { dest in
+                                    Button(cloudManager.destinationDisplayName(dest)) {
+                                        withAnimation { viewModel.moveToCloud(folder, destination: dest) }
+                                    }
+                                }
+                            } label: {
+                                Text("Cloud")
+                            }
+                            .buttonStyle(StandardButtonStyle())
+                        } else {
+                            Button("Cloud") {
+                                withAnimation { viewModel.moveToCloud(folder) }
+                            }
+                            .buttonStyle(StandardButtonStyle())
+                        }
+                    }
+
+                    Button("Move") {
+                        viewModel.promptForMoveDestination(files: [folder])
+                    }
+                    .buttonStyle(StandardButtonStyle())
                     
                     Button("Bin") {
                         withAnimation {
@@ -115,12 +141,18 @@ struct FolderActionView: View {
     }
     
     private func loadFolderPreview(url: URL) {
+        let requestedURL = url
+        DispatchQueue.main.async {
+            self.childCount = 0
+            self.folderContents = []
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let items = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
                 let sortedItems = items.prefix(5).map { $0.lastPathComponent }
                 
                 DispatchQueue.main.async {
+                    guard self.folder.url == requestedURL else { return }
                     self.childCount = items.count
                     self.folderContents = Array(sortedItems)
                 }
