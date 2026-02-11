@@ -267,6 +267,26 @@ struct ContentView: View {
                                                 if !viewModel.showGroupReview {
                                                     VStack {
                                                         Spacer()
+                                                        if let movedTo = viewModel.relocationDestination(for: file) {
+                                                            HStack(spacing: 8) {
+                                                                Image(systemName: file.decision == .cloud ? "icloud.and.arrow.up.fill" : "folder.fill.badge.arrow.forward")
+                                                                    .foregroundColor(.blue)
+                                                                Text(file.decision == .cloud ? "Moved to Cloud:" : "Moved to:")
+                                                                    .font(.system(size: 12, weight: .semibold))
+                                                                    .foregroundColor(.secondary)
+                                                                Text(movedTo.path)
+                                                                    .font(.system(size: 12))
+                                                                    .lineLimit(1)
+                                                                    .truncationMode(.middle)
+                                                            }
+                                                            .padding(.horizontal, 12)
+                                                            .padding(.vertical, 8)
+                                                            .background(
+                                                                Capsule()
+                                                                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+                                                            )
+                                                            .padding(.bottom, 10)
+                                                        }
                                                         ActionDockPanel(
                                                             canUndo: viewModel.canUndo,
                                                             canForward: viewModel.canRedo(),
@@ -348,6 +368,31 @@ struct ContentView: View {
         .frame(minWidth: 420, minHeight: 680)
         .background(WindowAccessor(window: $window))
         .background(QuickLookResponder())
+        .overlay(alignment: .top) {
+            if let toast = viewModel.toastMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(toast)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.orange.opacity(0.4), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                .padding(.top, 10)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
         .onChange(of: viewModel.selectedFolderURL) { _ in
             DispatchQueue.main.async {
                 if let window = window {

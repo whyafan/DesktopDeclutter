@@ -34,6 +34,8 @@ class DeclutterViewModel: ObservableObject {
 
     // Move progress
     @Published var movingItemIds: Set<UUID> = []
+    @Published var toastMessage: String? = nil
+    private var toastTask: Task<Void, Never>? = nil
     
     // Filters
     @Published var selectedFileTypeFilter: FileType? = nil
@@ -174,7 +176,7 @@ class DeclutterViewModel: ObservableObject {
     }
 
     @MainActor
-    func promptForFolderAndLoad() {
+    func promptForFolderAndLoad(onComplete: ((Bool) -> Void)? = nil) {
         guard !isPresentingFolderPicker else { return }
         isPresentingFolderPicker = true
 
@@ -200,6 +202,9 @@ class DeclutterViewModel: ObservableObject {
                     self.selectedFolderURL = url
                     FileScanner.shared.useCustomURL(url)
                     self.loadFiles()
+                    onComplete?(true)
+                } else {
+                    onComplete?(false)
                 }
             }
         }
@@ -293,7 +298,6 @@ class DeclutterViewModel: ObservableObject {
             files[index].decision = .kept
             keptCount += 1
             recordAction(.keep, file: file, decision: .kept)
-            moveToNext()
         }
     }
     
@@ -320,7 +324,6 @@ class DeclutterViewModel: ObservableObject {
                 binnedFiles.append(file)
             }
             recordAction(.bin, file: file, decision: .binned)
-            moveToNext()
         }
     }
     
@@ -334,10 +337,13 @@ class DeclutterViewModel: ObservableObject {
         
         stackedFiles.append(file)
         recordAction(.stack, file: file)
-        moveToNext()
     }
     
     func moveToCloud(_ file: DesktopFile, destination: CloudDestination? = nil) {
+        if isProtectedApplicationBundle(file) {
+            showToast("Applications in system directories cannot be moved here. Use Finder or official installer/uninstaller.")
+            return
+        }
         let sourceFolderName = selectedFolderURL?.lastPathComponent
         cloudManager.moveFileToCloud(file, sourceFolderName: sourceFolderName, destination: destination) { [weak self] result in
             DispatchQueue.main.async {
@@ -350,7 +356,6 @@ class DeclutterViewModel: ObservableObject {
                         self.files[index].decision = .cloud
                     }
                     self.recordAction(.cloud, file: file, decision: .cloud, movedToURL: movedToURL, destinationId: destination?.id ?? self.cloudManager.activeDestinationId)
-                    self.moveToNext()
                     
                 case .failure(let error):
                     print("Failed to move to cloud: \(error)")
@@ -369,6 +374,10 @@ class DeclutterViewModel: ObservableObject {
         // Naive serial implementation for now, or parallel?
         // Let's do parallel but just trigger all.
         for file in filesToMove {
+            if isProtectedApplicationBundle(file) {
+                showToast("Applications in system directories cannot be moved here. Use Finder or official installer/uninstaller.")
+                continue
+            }
             let sourceFolderName = selectedFolderURL?.lastPathComponent
             cloudManager.moveFileToCloud(file, sourceFolderName: sourceFolderName, destination: destination) { [weak self] result in
                 DispatchQueue.main.async {
@@ -388,12 +397,6 @@ class DeclutterViewModel: ObservableObject {
                     }
                 }
             }
-        }
-        
-        // If current file was in the group, move next
-        // (This might happen before moves verify, but UI responsiveness is key)
-        if let current = currentFile, filesToMove.contains(where: { $0.id == current.id }) {
-            moveToNext()
         }
     }
 
@@ -418,6 +421,10 @@ class DeclutterViewModel: ObservableObject {
     }
 
     func moveToFolder(_ file: DesktopFile, destinationURL: URL) {
+        if isProtectedApplicationBundle(file) {
+            showToast("Applications in system directories cannot be moved here. Use Finder or official installer/uninstaller.")
+            return
+        }
         Task { @MainActor in
             movingItemIds.insert(file.id)
         }
@@ -466,7 +473,6 @@ class DeclutterViewModel: ObservableObject {
                     }
                     self.recordAction(.move, file: file, decision: .moved, movedToURL: targetURL)
                     self.movingItemIds.remove(file.id)
-                    self.moveToNext()
                 }
             } catch {
                 print("Move Error: \(error)")
@@ -481,6 +487,7 @@ class DeclutterViewModel: ObservableObject {
     func moveGroupToFolder(_ filesToMove: [DesktopFile], destinationURL: URL) {
         Task { @MainActor in
             for file in filesToMove {
+                if isProtectedApplicationBundle(file) { continue }
                 movingItemIds.insert(file.id)
             }
         }
@@ -510,6 +517,12 @@ class DeclutterViewModel: ObservableObject {
             defer { if accessing { destinationURL.stopAccessingSecurityScopedResource() } }
 
             for file in filesToMove {
+                if self.isProtectedApplicationBundle(file) {
+                    _ = await MainActor.run {
+                        self.showToast("Applications in system directories cannot be moved here. Use Finder or official installer/uninstaller.")
+                    }
+                    continue
+                }
                 let targetURL = uniqueURL(for: destinationURL.appendingPathComponent(file.name))
                 do {
                     do {
@@ -539,11 +552,6 @@ class DeclutterViewModel: ObservableObject {
                 }
             }
 
-            await MainActor.run {
-                if let current = self.currentFile, filesToMove.contains(where: { $0.id == current.id }) {
-                    self.moveToNext()
-                }
-            }
         }
     }
 
@@ -603,6 +611,26 @@ class DeclutterViewModel: ObservableObject {
             }
         }
     }
+
+    private func isProtectedApplicationBundle(_ file: DesktopFile) -> Bool {
+        guard file.url.pathExtension.lowercased() == "app" else { return false }
+        let path = file.url.path
+        return path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/")
+    }
+
+    @MainActor
+    func showToast(_ message: String, duration: UInt64 = 3_000_000_000) {
+        toastTask?.cancel()
+        toastMessage = message
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: duration)
+            if !Task.isCancelled {
+                withAnimation {
+                    toastMessage = nil
+                }
+            }
+        }
+    }
     
     // MARK: - History
     
@@ -646,6 +674,19 @@ class DeclutterViewModel: ObservableObject {
         if actionHistory.count > maxHistorySize {
             actionHistory.removeFirst()
         }
+    }
+
+    func relocationDestination(for file: DesktopFile) -> URL? {
+        actionHistory.last(where: { $0.file.id == file.id && ($0.type == .move || $0.type == .cloud) })?.movedToURL
+    }
+
+    func currentDecision(for file: DesktopFile) -> FileDecision? {
+        files.first(where: { $0.id == file.id })?.decision ?? file.decision
+    }
+
+    func isRelocated(_ file: DesktopFile) -> Bool {
+        let decision = currentDecision(for: file)
+        return decision == .moved || decision == .cloud
     }
     
     // MARK: - Undo / Redo

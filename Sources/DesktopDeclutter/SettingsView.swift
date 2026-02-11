@@ -139,7 +139,11 @@ struct SettingsView: View {
             Divider().padding(.vertical, 8)
             
             Button("Change Scan Folder...") {
-                viewModel.promptForFolderAndLoad()
+                viewModel.promptForFolderAndLoad { didSelect in
+                    if didSelect {
+                        isPresented = false
+                    }
+                }
             }
         }
     }

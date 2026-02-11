@@ -1,11 +1,29 @@
 import SwiftUI
 
+private struct FolderPreviewItem: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let isDirectory: Bool
+}
+
 struct FolderActionView: View {
     @ObservedObject var viewModel: DeclutterViewModel
     @StateObject private var cloudManager = CloudManager.shared
-    @State private var folderContents: [String] = []
+    @State private var folderContents: [FolderPreviewItem] = []
     @State private var childCount: Int = 0
     let folder: DesktopFile
+
+    private var liveFolder: DesktopFile {
+        viewModel.files.first(where: { $0.id == folder.id }) ?? folder
+    }
+
+    private var isRelocated: Bool {
+        viewModel.isRelocated(liveFolder)
+    }
+    
+    private var relocatedDestinationPath: String? {
+        viewModel.relocationDestination(for: folder)?.path
+    }
     
     var body: some View {
         VStack(spacing: 24) {
@@ -28,21 +46,41 @@ struct FolderActionView: View {
                     Text(folder.name)
                         .font(.system(size: 28, weight: .semibold))
                         .multilineTextAlignment(.center)
-                    
-                    Text("\(childCount) items inside")
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
+
+                    if isRelocated {
+                        Text(folder.decision == .cloud ? "Moved to Cloud" : "Moved")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.blue)
+                        if let relocatedDestinationPath {
+                            Text(relocatedDestinationPath)
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 320)
+                        } else {
+                            Text("This item has been moved from the current folder.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 320)
+                        }
+                    } else {
+                        Text("\(childCount) items inside")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 // Preview list of first few items
-                if !folderContents.isEmpty {
+                if !folderContents.isEmpty && !isRelocated {
                     VStack(alignment: .leading, spacing: 8) {
-                        ForEach(folderContents, id: \.self) { name in
+                        ForEach(folderContents) { item in
                             HStack {
-                                Image(systemName: "doc")
+                                Image(systemName: item.isDirectory ? "folder.fill" : "doc")
                                     .font(.system(size: 11))
                                     .foregroundColor(.secondary)
-                                Text(name)
+                                Text(item.name)
                                     .font(.system(size: 13))
                                     .lineLimit(1)
                             }
@@ -70,7 +108,7 @@ struct FolderActionView: View {
             VStack(spacing: 16) {
                 Button(action: {
                     withAnimation {
-                        viewModel.enterFolder(folder)
+                        viewModel.enterFolder(liveFolder)
                     }
                 }) {
                     HStack {
@@ -86,39 +124,49 @@ struct FolderActionView: View {
                     .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
+                .disabled(isRelocated)
+                .opacity(isRelocated ? 0.35 : 1.0)
                 
                 HStack(spacing: 20) {
-                    Button("Skip") {
+                    Button("Keep/Skip") {
                         withAnimation {
-                            viewModel.skipFolder(folder)
+                            viewModel.skipFolder(liveFolder)
                         }
                     }
                     .buttonStyle(StandardButtonStyle())
+                    .disabled(isRelocated)
+                    .opacity(isRelocated ? 0.35 : 1.0)
 
                     if !cloudManager.destinations.isEmpty {
                         if cloudManager.destinations.count > 1 {
                             Menu {
                                 ForEach(cloudManager.destinations) { dest in
                                     Button(cloudManager.destinationDisplayName(dest)) {
-                                        withAnimation { viewModel.moveToCloud(folder, destination: dest) }
+                                        withAnimation { viewModel.moveToCloud(liveFolder, destination: dest) }
                                     }
                                 }
                             } label: {
                                 Text("Cloud")
                             }
                             .buttonStyle(StandardButtonStyle())
+                            .disabled(isRelocated)
+                            .opacity(isRelocated ? 0.35 : 1.0)
                         } else {
                             Button("Cloud") {
-                                withAnimation { viewModel.moveToCloud(folder) }
+                                withAnimation { viewModel.moveToCloud(liveFolder) }
                             }
                             .buttonStyle(StandardButtonStyle())
+                            .disabled(isRelocated)
+                            .opacity(isRelocated ? 0.35 : 1.0)
                         }
                     }
 
                     Button("Move") {
-                        viewModel.promptForMoveDestination(files: [folder])
+                        viewModel.promptForMoveDestination(files: [liveFolder])
                     }
                     .buttonStyle(StandardButtonStyle())
+                    .disabled(isRelocated)
+                    .opacity(isRelocated ? 0.35 : 1.0)
                     
                     Button("Bin") {
                         withAnimation {
@@ -126,6 +174,17 @@ struct FolderActionView: View {
                         }
                     }
                     .buttonStyle(StandardButtonStyle(isDestructive: true))
+                    .disabled(isRelocated)
+                    .opacity(isRelocated ? 0.35 : 1.0)
+                }
+
+                if isRelocated {
+                    Button("Undo") {
+                        withAnimation {
+                            viewModel.undoDecision(for: liveFolder)
+                        }
+                    }
+                    .buttonStyle(StandardButtonStyle())
                 }
             }
             .padding(.bottom, 60)
@@ -133,10 +192,15 @@ struct FolderActionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VisualEffectView(material: .contentBackground, blendingMode: .behindWindow))
         .onAppear {
-            loadFolderPreview(url: folder.url)
+            loadFolderPreview(url: liveFolder.url)
         }
         .onChange(of: folder.id) { _ in
-            loadFolderPreview(url: folder.url)
+            loadFolderPreview(url: liveFolder.url)
+        }
+        .onChange(of: viewModel.actionHistory.count) { _ in
+            if !isRelocated {
+                loadFolderPreview(url: liveFolder.url)
+            }
         }
     }
     
@@ -148,8 +212,12 @@ struct FolderActionView: View {
         }
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let items = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-                let sortedItems = items.prefix(5).map { $0.lastPathComponent }
+                let keys: [URLResourceKey] = [.isDirectoryKey]
+                let items = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])
+                let sortedItems = items.prefix(5).map { item -> FolderPreviewItem in
+                    let isDirectory = (try? item.resourceValues(forKeys: Set(keys)).isDirectory) ?? false
+                    return FolderPreviewItem(name: item.lastPathComponent, isDirectory: isDirectory)
+                }
                 
                 DispatchQueue.main.async {
                     guard self.folder.url == requestedURL else { return }
@@ -158,6 +226,11 @@ struct FolderActionView: View {
                 }
             } catch {
                 print("Error scanning folder preview: \(error)")
+                DispatchQueue.main.async {
+                    guard self.folder.url == requestedURL else { return }
+                    self.childCount = 0
+                    self.folderContents = []
+                }
             }
         }
     }
