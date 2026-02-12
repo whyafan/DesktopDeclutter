@@ -1,10 +1,24 @@
 import SwiftUI
+import AppKit
 
 struct GalleryGridView: View {
     @ObservedObject var viewModel: DeclutterViewModel
     @StateObject private var cloudManager = CloudManager.shared
     @State private var selectedFiles: Set<UUID> = []
     @State private var hoveredFileId: UUID? = nil
+
+    private func promptToConfigureCloud() {
+        let alert = NSAlert()
+        alert.messageText = "Cloud destination not set up"
+        alert.informativeText = "Would you like to open Settings and connect a cloud folder now?"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Not Now")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -107,48 +121,62 @@ struct GalleryGridView: View {
                         }
                         .buttonStyle(.plain)
                         
-                        if !cloudManager.destinations.isEmpty {
-                            Spacer()
+                        Spacer()
 
-                            if cloudManager.destinations.count > 1 {
-                                Menu {
-                                    ForEach(cloudManager.destinations) { dest in
-                                        Button(cloudManager.destinationDisplayName(dest)) {
-                                            let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
-                                            viewModel.moveGroupToCloud(filesToMove, destination: dest)
-                                            selectedFiles.removeAll()
-                                        }
+                        if cloudManager.destinations.count > 1 {
+                            Menu {
+                                ForEach(cloudManager.destinations) { dest in
+                                    Button(cloudManager.destinationDisplayName(dest)) {
+                                        let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
+                                        viewModel.moveGroupToCloud(filesToMove, destination: dest)
+                                        selectedFiles.removeAll()
                                     }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "icloud.and.arrow.up.fill")
-                                        Text("Cloud (\(selectedFiles.count))")
-                                    }
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Capsule().fill(Color.blue))
                                 }
-                                .buttonStyle(.plain)
-                            } else {
-                                Button(action: {
-                                    let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
-                                    viewModel.moveGroupToCloud(filesToMove)
-                                    selectedFiles.removeAll()
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "icloud.and.arrow.up.fill")
-                                        Text("Cloud (\(selectedFiles.count))")
-                                    }
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Capsule().fill(Color.blue))
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "icloud.and.arrow.up.fill")
+                                    Text("Cloud (\(selectedFiles.count))")
                                 }
-                                .buttonStyle(.plain)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.blue))
                             }
+                            .buttonStyle(.plain)
+                        } else if cloudManager.destinations.count == 1 {
+                            Button(action: {
+                                let filesToMove = viewModel.filteredFiles.filter { selectedFiles.contains($0.id) }
+                                viewModel.moveGroupToCloud(filesToMove)
+                                selectedFiles.removeAll()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "icloud.and.arrow.up.fill")
+                                    Text("Cloud (\(selectedFiles.count))")
+                                }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.blue))
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button(action: {
+                                promptToConfigureCloud()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "icloud.and.arrow.up.fill")
+                                    Text("Cloud (\(selectedFiles.count))")
+                                }
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Cloud is not configured. Click to open Settings.")
                         }
 
                         Button(action: {

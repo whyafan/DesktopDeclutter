@@ -1,5 +1,6 @@
 import SwiftUI
 import QuickLookUI
+import AppKit
 
 struct ContentView: View {
     @ObservedObject var viewModel: DeclutterViewModel
@@ -20,6 +21,19 @@ struct ContentView: View {
             return "icloud.and.arrow.up.fill"
         default:
             return "icloud.and.arrow.up.fill"
+        }
+    }
+
+    private func promptToConfigureCloud() {
+        let alert = NSAlert()
+        alert.messageText = "Cloud destination not set up"
+        alert.informativeText = "Would you like to open Settings and connect a cloud folder now?"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Not Now")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
     }
 
@@ -297,7 +311,15 @@ struct ContentView: View {
                                                             onUndo: { withAnimation { _ = viewModel.undoLastAction() } },
                                                             onBin: { withAnimation { viewModel.binCurrentFile() } },
                                                             onKeep: { withAnimation { viewModel.keepCurrentFile() } },
-                                                            onCloud: { withAnimation { viewModel.moveToCloud(file) } },
+                                                            onCloud: {
+                                                                withAnimation {
+                                                                    if cloudManager.destinations.isEmpty {
+                                                                        promptToConfigureCloud()
+                                                                    } else {
+                                                                        viewModel.moveToCloud(file)
+                                                                    }
+                                                                }
+                                                            },
                                                             onCloudPick: { dest in withAnimation { viewModel.moveToCloud(file, destination: dest) } },
                                                             onMove: { viewModel.promptForMoveDestination(files: [file]) },
                                                             onForward: { withAnimation { viewModel.goForward() } }
@@ -455,7 +477,11 @@ struct ContentView: View {
                 }
             case 8: // C key
                 if !viewModel.isFinished, let file = viewModel.currentFile {
-                    viewModel.moveToCloud(file)
+                    if cloudManager.destinations.isEmpty {
+                        promptToConfigureCloud()
+                    } else {
+                        viewModel.moveToCloud(file)
+                    }
                     return nil
                 }
             case 46: // M key
@@ -657,12 +683,12 @@ struct ActionDockPanel: View {
                         icon: cloudIcon,
                         label: "Cloud",
                         shortcut: "C",
-                        color: .blue,
+                        color: .gray,
                         isPrimary: false,
-                        isEnabled: false,
-                        action: {}
+                        isEnabled: !hasDecision,
+                        action: onCloud
                     )
-                    .help("Add a cloud destination in Settings")
+                    .help("Cloud is not configured. Click to open Settings.")
                 } else if cloudDestinations.count > 1 {
                     Menu {
                         ForEach(cloudDestinations) { dest in

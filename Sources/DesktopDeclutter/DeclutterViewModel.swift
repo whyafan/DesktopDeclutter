@@ -612,7 +612,7 @@ class DeclutterViewModel: ObservableObject {
         }
     }
 
-    private func isProtectedApplicationBundle(_ file: DesktopFile) -> Bool {
+    nonisolated private func isProtectedApplicationBundle(_ file: DesktopFile) -> Bool {
         guard file.url.pathExtension.lowercased() == "app" else { return false }
         let path = file.url.path
         return path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/")
