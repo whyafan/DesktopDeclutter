@@ -855,7 +855,6 @@ class DeclutterViewModel: ObservableObject {
     }
 
     func skipFolder(_ file: DesktopFile) {
-        print("Folder decision: skip \(file.url.path)")
         if let removedIndex = filteredFiles.firstIndex(where: { $0.id == file.id }) {
             files.removeAll { $0.id == file.id }
             if filteredFiles.isEmpty {
@@ -875,7 +874,6 @@ class DeclutterViewModel: ObservableObject {
 
     func enterFolder(_ file: DesktopFile) {
         guard file.fileType == .folder else { return }
-        print("Folder decision: dive into \(file.url.path)")
         let context = FolderContext(
             url: selectedFolderURL ?? file.url,
             files: files,

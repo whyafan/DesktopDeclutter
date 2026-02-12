@@ -57,7 +57,6 @@ class FileScanner {
 
     func generateThumbnail(for file: DesktopFile, completion: @escaping (NSImage?) -> Void) {
         if file.fileType == .folder {
-            print("Thumbnail: skipping folder \(file.name)")
             completion(nil)
             return
         }
@@ -67,7 +66,11 @@ class FileScanner {
 
         QLThumbnailGenerator.shared.generateRepresentations(for: request) { thumbnail, _, error in
             if let error {
-                print("Thumbnail error for \(file.name): \(error)")
+                let nsError = error as NSError
+                let isExpectedThumbnailMiss = nsError.domain == QLThumbnailErrorDomain && (nsError.code == 2 || nsError.code == 3)
+                if !isExpectedThumbnailMiss {
+                    print("Thumbnail error for \(file.name): \(error)")
+                }
             }
             if let image = thumbnail?.nsImage {
                 completion(image)
