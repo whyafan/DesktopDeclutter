@@ -55,7 +55,7 @@ struct FileGridCard: View {
                     ZStack {
                         Color.black.opacity(0.3)
                             .cornerRadius(12)
-                        Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : (decision == .moved ? "folder.fill.badge.arrow.forward" : "square.stack.3d.up.fill"))))
+                        Image(systemName: decision == .kept ? "checkmark.circle.fill" : (decision == .binned ? "trash.circle.fill" : (decision == .cloud ? "icloud.and.arrow.up.fill" : (decision == .moved ? "folder.fill" : "square.stack.3d.up.fill"))))
                             .font(.system(size: 44))
                             .foregroundColor(.white)
                             .shadow(radius: 4)
